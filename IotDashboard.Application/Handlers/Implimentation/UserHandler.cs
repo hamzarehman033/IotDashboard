@@ -19,23 +19,27 @@ namespace IotDashboard.Application.Handlers.Implimentation
     public class UserHandler : IUserHandler
     {
         private readonly UserManager<User> _userManager;
+        private readonly RoleManager<Role> _roleManager;
         private readonly JWTConfigs _jwtConfigs;
         private readonly IValidator<LoginVM> _loginValidator;
         private readonly IValidator<RegisterVM> _registerVmValidator;
+        private readonly IValidator<CreateUserVM> _createUserValidator;
         private readonly IValidator<ChangePasswordVM> _changePasswordVmValidator;
         private readonly IValidator<ResetPasswordVM> _resetPasswordVMValidator;
         protected readonly string _success;
         protected readonly string _error;
         protected IHttpContextAccessor _httpContextAccessor;
-        public UserHandler(UserManager<User> userManager, IOptions<JWTConfigs> options,
-            IValidator<LoginVM> loginValidator, IValidator<RegisterVM> registerVmValidator,
+        public UserHandler(UserManager<User> userManager, RoleManager<Role> roleManager, IOptions<JWTConfigs> options,
+            IValidator<LoginVM> loginValidator, IValidator<RegisterVM> registerVmValidator, IValidator<CreateUserVM> createUserValidator,
             IValidator<ChangePasswordVM> changePasswordVmValidator, IValidator<ResetPasswordVM> resetPasswordVMValidator,
             IHttpContextAccessor httpContextAccessor)
         {
             _userManager = userManager;
+            _roleManager = roleManager;
             _jwtConfigs = options.Value;
             _loginValidator = loginValidator;
             _registerVmValidator = registerVmValidator;
+            _createUserValidator = createUserValidator;
             _changePasswordVmValidator = changePasswordVmValidator;
             _resetPasswordVMValidator = resetPasswordVMValidator;
             _success = httpContextAccessor.GetResourceString("global.status.success");
@@ -84,6 +88,12 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 var userResult = await _userManager.CreateAsync(user, model.Password);
                 if (userResult.Succeeded)
                 {
+                    const string defaultRole = "User";
+                    if (await _roleManager.RoleExistsAsync(defaultRole))
+                    {
+                        await _userManager.AddToRoleAsync(user, defaultRole);
+                    }
+
                     response.Status = _success;
                     response.Data = _httpContextAccessor.GetResourceString("messages.user.created");
                 }
@@ -91,6 +101,43 @@ namespace IotDashboard.Application.Handlers.Implimentation
                     response.Message = userResult.Errors.Select(x => x.Description).ToList();
 
             }
+            return response;
+        }
+
+        public async Task<Response<string>> CreateUser(CreateUserVM model)
+        {
+            Response<string> response = new Response<string> { Status = _error };
+            var validationResult = await _createUserValidator.ValidateAsync(model);
+            if (!validationResult.IsValid)
+            {
+                response.Message = validationResult.ToErrorMessage();
+                return response;
+            }
+
+            if (!await _roleManager.RoleExistsAsync(model.Role))
+            {
+                response.Message.Add("Selected role does not exist.");
+                return response;
+            }
+
+            var user = new User { UserName = model.UserName, Email = model.Email };
+            var userCreationResult = await _userManager.CreateAsync(user, model.Password);
+            if (!userCreationResult.Succeeded)
+            {
+                response.Message = userCreationResult.Errors.Select(x => x.Description).ToList();
+                return response;
+            }
+
+            var roleAssignmentResult = await _userManager.AddToRoleAsync(user, model.Role);
+            if (!roleAssignmentResult.Succeeded)
+            {
+                response.Message = roleAssignmentResult.Errors.Select(x => x.Description).ToList();
+                return response;
+            }
+
+            response.Status = _success;
+            response.Data = _httpContextAccessor.GetResourceString("messages.user.created");
+            response.Message.Add($"User created with role '{model.Role}'.");
             return response;
         }
 

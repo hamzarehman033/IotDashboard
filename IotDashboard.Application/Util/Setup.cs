@@ -35,6 +35,7 @@ namespace IotDashboard.Application.Util
             services.AddScoped<IValidator<WeatherVM>, WeatherValidator>();
             services.AddScoped<IValidator<LoginVM>, LoginValidator>();
             services.AddScoped<IValidator<RegisterVM>, RegisterValidator>();
+            services.AddScoped<IValidator<CreateUserVM>, CreateUserValidator>();
             services.AddScoped<IValidator<ChangePasswordVM>, ChangePasswordValidator>();
             services.AddScoped<IValidator<ResetPasswordVM>, ResetPasswordValidator>();
             services.AddTransient(typeof(FilterValidator<>));
@@ -89,9 +90,25 @@ namespace IotDashboard.Application.Util
             {
                 var dbContext = serviceScope.ServiceProvider.GetService<AppDBContext>(); // Replace with your DbContext
                 await dbContext.Database.MigrateAsync();
+
+                var roleManager = serviceScope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
+                await SeedDefaultRoles(roleManager);
             }
 
             return app;
+        }
+
+        private static async Task SeedDefaultRoles(RoleManager<Role> roleManager)
+        {
+            var defaultRoles = new[] { "SysAdmin", "Admin", "User", "Technician", "Viewer" };
+
+            foreach (var roleName in defaultRoles)
+            {
+                if (!await roleManager.RoleExistsAsync(roleName))
+                {
+                    await roleManager.CreateAsync(new Role { Name = roleName });
+                }
+            }
         }
     }
 }

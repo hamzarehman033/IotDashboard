@@ -30,6 +30,15 @@ namespace IotDashboard.Api.Controllers
             var data = await _userHandler.Register(model);
             return data.ToResponse();
         }
+
+        [Authorize(Roles = "SysAdmin")]
+        [HttpPost("admin/create-user")]
+        public async Task<IActionResult> CreateUser(CreateUserVM model)
+        {
+            var data = await _userHandler.CreateUser(model);
+            return data.ToResponse();
+        }
+
         [HttpGet("refresh")]
         public async Task<IActionResult> Refresh(string refreshToken)
         {
