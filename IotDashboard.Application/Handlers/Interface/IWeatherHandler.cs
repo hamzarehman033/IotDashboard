@@ -1,0 +1,14 @@
+﻿using IotDashboard.Application.Dtos;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace IotDashboard.Application.Handlers.Interface
+{
+    public interface IWeatherHandler : IBaseHandler<WeatherVM>
+    {
+        Task<byte[]> GetReport();
+    }
+}

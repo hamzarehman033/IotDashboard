@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package>
+  <metadata>
+    <id>IotDashboard</id>
+    <version>1.0.3</version>
+    <authors>Waleed</authors>
+    <owners>Waleed Ur Rehman</owners>
+    <license type="file">readme\license.txt</license>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>IotDashboard is a .NET Core project template following Clean Code Architecture. It provides generic CRUD operations, modular layers, and easy testing. Start your projects with clean, maintainable code.</description>
+    <tags>CleanCode API Scaffold</tags>
+    <repository type="git" url="https://github.com/waleed415/IotDashboard" />
+    <readme>readme\README.md</readme>
+    <contentFiles>
+      <files include="readme\**" buildAction="None" copyToOutput="true" flatten="true" />
+    </contentFiles>
+  </metadata>
+   <files>
+      <file src="..\IotDashboard\**\*.*" target="" />
+    </files>
+</package>
