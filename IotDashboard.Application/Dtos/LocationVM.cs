@@ -9,5 +9,13 @@ namespace IotDashboard.Application.Dtos
         public long? ParentId { get; set; }
         public int Level { get; set; } // 1=Region, 2=SubRegion, 3=Zone
         public bool IsActive { get; set; }
+
+        public string Type => Level switch
+        {
+            1 => "Region",
+            2 => "SubRegion",
+            3 => "Zone",
+            _ => "Unknown"
+        };
     }
 }
