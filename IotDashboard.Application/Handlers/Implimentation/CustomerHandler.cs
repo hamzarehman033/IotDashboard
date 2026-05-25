@@ -16,15 +16,49 @@ namespace IotDashboard.Application.Handlers.Implimentation
     public class CustomerHandler : BaseHandler<CustomerDetailVM, Customer>, ICustomerHandler
     {
         private readonly ICustomerRepository _customerRepository;
+        private readonly ISubscriptionRepository _subscriptionRepository;
 
         public CustomerHandler(
             ICustomerRepository customerRepository,
+            ISubscriptionRepository subscriptionRepository,
             IValidator<CustomerDetailVM> validator,
             FilterValidator<CustomerDetailVM> filterValidator,
             IHttpContextAccessor httpContextAccessor)
             : base(customerRepository, CustomerMapper.Mapper, validator, filterValidator, httpContextAccessor)
         {
             _customerRepository = customerRepository;
+            _subscriptionRepository = subscriptionRepository;
+        }
+
+        public override async Task<Response<CustomerDetailVM>> CreateAsync(CustomerDetailVM model)
+        {
+            var response = await base.CreateAsync(model);
+
+            if (response.Status == _success && response.Data != null)
+            {
+                // Retrieve the created customer to get its ID
+                var customer = await _customerRepository.GetByIdAsync(response.Data.Id);
+                
+                if (customer != null)
+                {
+                    // Create a default subscription for the new customer
+                    var defaultSubscription = new Subscription
+                    {
+                        CustomerId = customer.Id,
+                        Status = "Active",
+                        StartsAt = DateTime.UtcNow,
+                        EndsAt = DateTime.UtcNow.AddYears(1),
+                        Notes = "Auto-created default subscription",
+                        IsActive = true,
+                        CreatedBy = customer.CreatedBy,
+                        CreatedOn = DateTime.UtcNow
+                    };
+
+                    await _subscriptionRepository.CreateAsync(defaultSubscription);
+                }
+            }
+
+            return response;
         }
      
         public async Task<Response<bool>> SetSubscriptionStatusAsync(long customerId, bool isActive)

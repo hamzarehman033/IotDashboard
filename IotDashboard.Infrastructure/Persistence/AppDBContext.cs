@@ -74,10 +74,23 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.ToTable("Customers").HasKey(x => x.Id);
                 entity.HasIndex(x => x.Slug).IsUnique();
             });
+
+            modelBuilder.Entity<Subscription>(entity =>
+            {
+                entity.ToTable("Subscriptions").HasKey(x => x.Id);
+                entity.Property(x => x.Status).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.Notes).HasMaxLength(1000);
+                entity.HasIndex(x => x.CustomerId).IsUnique();
+                entity.HasOne(x => x.Customer)
+                    .WithOne(x => x.Subscription)
+                    .HasForeignKey<Subscription>(x => x.CustomerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
         }
 
         public DbSet<Weather> Weathers { get; set; }
         public DbSet<Customer> Customers { get; set; }
+        public DbSet<Subscription> Subscriptions { get; set; }
 
         public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
         {

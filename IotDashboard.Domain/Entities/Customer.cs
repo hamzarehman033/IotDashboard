@@ -9,5 +9,7 @@ namespace IotDashboard.Domain.Entities
         public string Email { get; set; } = string.Empty;
         public bool SubscriptionActive { get; set; }
         public string Status { get; set; } = "Inactive";
+
+        public Subscription? Subscription { get; set; }
     }
 }

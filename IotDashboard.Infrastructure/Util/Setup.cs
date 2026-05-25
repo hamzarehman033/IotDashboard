@@ -27,6 +27,7 @@ namespace IotDashboard.Infrastructure.Util
         {
             services.AddScoped<IWeatherRepository, WeatherRepository>();
             services.AddScoped<ICustomerRepository, CustomerRepository>();
+            services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
         }
 
     }
