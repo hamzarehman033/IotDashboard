@@ -120,7 +120,12 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 return response;
             }
 
-            var user = new User { UserName = model.UserName, Email = model.Email };
+            var user = new User 
+            { 
+                UserName = model.UserName, 
+                Email = model.Email,
+                CustomerId = model.CustomerId
+            };
             var userCreationResult = await _userManager.CreateAsync(user, model.Password);
             if (!userCreationResult.Succeeded)
             {
@@ -138,6 +143,10 @@ namespace IotDashboard.Application.Handlers.Implimentation
             response.Status = _success;
             response.Data = _httpContextAccessor.GetResourceString("messages.user.created");
             response.Message.Add($"User created with role '{model.Role}'.");
+            if (model.CustomerId.HasValue)
+            {
+                response.Message.Add($"Linked to Customer ID: {model.CustomerId}");
+            }
             return response;
         }
 

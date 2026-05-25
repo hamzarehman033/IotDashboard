@@ -14,7 +14,9 @@ namespace IotDashboard.Domain.Entities
             RefreshToken = string.Empty;
         }
         public string RefreshToken { get; set; }
+            public long? CustomerId { get; set; }
 
         public ICollection<UserToken> Tokens { get; } = new List<UserToken>();
+            public Customer? Customer { get; set; }
     }
 }

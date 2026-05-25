@@ -11,5 +11,6 @@ namespace IotDashboard.Domain.Entities
         public string Status { get; set; } = "Inactive";
 
         public Subscription? Subscription { get; set; }
+        public ICollection<User> Users { get; set; } = new List<User>();
     }
 }
