@@ -38,12 +38,14 @@ namespace IotDashboard.Application.Util
             services.AddScoped<IValidator<CreateUserVM>, CreateUserValidator>();
             services.AddScoped<IValidator<ChangePasswordVM>, ChangePasswordValidator>();
             services.AddScoped<IValidator<ResetPasswordVM>, ResetPasswordValidator>();
+            services.AddScoped<IValidator<CustomerDetailVM>, CustomerDetailVMValidator>();
             services.AddTransient(typeof(FilterValidator<>));
         }
         private static void SetupHandlers(this IServiceCollection services)
         {
             services.AddScoped<IWeatherHandler, WeatherHandler>();
             services.AddScoped<IUserHandler, UserHandler>();
+            services.AddScoped<ICustomerHandler, CustomerHandler>();
         }
 
         private static void SetupIdentity(this IServiceCollection services)

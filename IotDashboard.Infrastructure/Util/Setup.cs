@@ -26,6 +26,7 @@ namespace IotDashboard.Infrastructure.Util
         private static void RepoInejctor(IServiceCollection services)
         {
             services.AddScoped<IWeatherRepository, WeatherRepository>();
+            services.AddScoped<ICustomerRepository, CustomerRepository>();
         }
 
     }

@@ -68,9 +68,16 @@ namespace IotDashboard.Infrastructure.Persistence
                 // entity.HasKey(key => new { key.UserId, key.LoginProvider, key.Name });
 
             });
+
+            modelBuilder.Entity<Customer>(entity =>
+            {
+                entity.ToTable("Customers").HasKey(x => x.Id);
+                entity.HasIndex(x => x.Slug).IsUnique();
+            });
         }
 
         public DbSet<Weather> Weathers { get; set; }
+        public DbSet<Customer> Customers { get; set; }
 
         public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
         {
