@@ -40,6 +40,7 @@ namespace IotDashboard.Application.Util
             services.AddScoped<IValidator<ResetPasswordVM>, ResetPasswordValidator>();
             services.AddScoped<IValidator<CustomerDetailVM>, CustomerDetailVMValidator>();
             services.AddScoped<IValidator<SubscriptionDetailVM>, SubscriptionDetailVMValidator>();
+            services.AddScoped<IValidator<LocationVM>, LocationVMValidator>();
             services.AddTransient(typeof(FilterValidator<>));
         }
         private static void SetupHandlers(this IServiceCollection services)
@@ -48,6 +49,7 @@ namespace IotDashboard.Application.Util
             services.AddScoped<IUserHandler, UserHandler>();
             services.AddScoped<ICustomerHandler, CustomerHandler>();
             services.AddScoped<ISubscriptionHandler, SubscriptionHandler>();
+            services.AddScoped<ILocationHandler, LocationHandler>();
         }
 
         private static void SetupIdentity(this IServiceCollection services)
