@@ -96,7 +96,7 @@ namespace IotDashboard.Application.Util
         {
             using (var serviceScope = app.ApplicationServices.GetRequiredService<IServiceScopeFactory>().CreateScope())
             {
-                var dbContext = serviceScope.ServiceProvider.GetService<AppDBContext>(); // Replace with your DbContext
+                var dbContext = serviceScope.ServiceProvider.GetRequiredService<AppDBContext>();
                 await dbContext.Database.MigrateAsync();
 
                 var roleManager = serviceScope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
