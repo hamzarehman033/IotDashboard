@@ -52,6 +52,8 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.UseCors(x => x.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+
 
 await app.ApplyPendingMigrations();
 app.UseMiddleware<LocalizationMiddleware>();

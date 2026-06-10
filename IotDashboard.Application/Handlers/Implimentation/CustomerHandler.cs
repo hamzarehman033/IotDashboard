@@ -6,8 +6,12 @@ using IotDashboard.Domain.Entities;
 using IotDashboard.Domain.Interfaces;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using IotDashboard.Application.Mappers;
 
@@ -32,6 +36,8 @@ namespace IotDashboard.Application.Handlers.Implimentation
 
         public override async Task<Response<CustomerDetailVM>> CreateAsync(CustomerDetailVM model)
         {
+            model.Slug = await GenerateUniqueSlugAsync(model.Name);
+            model.Status = "Active";
             var response = await base.CreateAsync(model);
 
             if (response.Status == _success && response.Data != null)
@@ -59,6 +65,46 @@ namespace IotDashboard.Application.Handlers.Implimentation
             }
 
             return response;
+        }
+
+        private async Task<string> GenerateUniqueSlugAsync(string name)
+        {
+            var baseSlug = ToSlug(name);
+            var slug = baseSlug;
+            var suffix = 1;
+
+            while (await _customerRepository.GetAllAsync(x => x.Slug == slug).AnyAsync())
+            {
+                slug = $"{baseSlug}-{suffix}";
+                suffix++;
+            }
+
+            return slug;
+        }
+
+        private static string ToSlug(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return "customer";
+
+            var normalized = value.Normalize(NormalizationForm.FormD);
+            var builder = new StringBuilder();
+
+            foreach (var ch in normalized)
+            {
+                var category = CharUnicodeInfo.GetUnicodeCategory(ch);
+                if (category != UnicodeCategory.NonSpacingMark)
+                {
+                    builder.Append(ch);
+                }
+            }
+
+            var cleaned = builder.ToString().Normalize(NormalizationForm.FormC).ToLowerInvariant();
+            cleaned = Regex.Replace(cleaned, "[^a-z0-9\\s-]", "");
+            cleaned = Regex.Replace(cleaned, "\\s+", "-");
+            cleaned = Regex.Replace(cleaned, "-+", "-").Trim('-');
+
+            return string.IsNullOrWhiteSpace(cleaned) ? "customer" : cleaned;
         }
      
         public async Task<Response<bool>> SetSubscriptionStatusAsync(long customerId, bool isActive)
