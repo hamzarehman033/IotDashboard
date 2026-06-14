@@ -11,12 +11,6 @@ namespace IotDashboard.Application.Validators
                 .NotEmpty().WithMessage("Customer name is required")
                 .MaximumLength(100);
 
-            RuleFor(x => x.Slug)
-                .NotEmpty().WithMessage("Slug is required")
-                .Matches("^[a-z0-9-]+$")
-                .WithMessage("Slug can only contain lowercase letters, numbers and hyphens")
-                .MaximumLength(100);
-
             RuleFor(x => x.Email)
                 .NotEmpty().WithMessage("Email is required")
                 .EmailAddress().WithMessage("Invalid email format");
