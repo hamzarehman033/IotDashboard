@@ -108,7 +108,7 @@ namespace IotDashboard.Application.Util
 
         private static async Task SeedDefaultRoles(RoleManager<Role> roleManager)
         {
-            var defaultRoles = new[] { "SysAdmin", "Admin", "User", "Technician", "Viewer" };
+            var defaultRoles = IotDashboard.Domain.Entities.RoleNames.All;
 
             foreach (var roleName in defaultRoles)
             {

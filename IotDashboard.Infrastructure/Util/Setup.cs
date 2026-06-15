@@ -19,7 +19,7 @@ namespace IotDashboard.Infrastructure.Util
             services.AddDbContext<AppDBContext>(options =>
                 options.UseNpgsql(connectionString, b => b.MigrationsAssembly("IotDashboard.Infrastructure"))
             );
-            services.AddSingleton<ICurrentUserService, CurrentUserService>();
+            services.AddScoped<ICurrentUserService, CurrentUserService>();
             RepoInejctor(services);
         }
 
