@@ -66,5 +66,13 @@ namespace IotDashboard.Api.Controllers
             var data = await _userHandler.ResetPassword(model);
             return data.ToResponse();
         }
+
+        [Authorize(Roles = "SysAdmin")]
+        [HttpGet("users")]
+        public async Task<IActionResult> GetAllUsers()
+        {
+            var data = await _userHandler.GetAllAsync();
+            return data.ToResponse();
+        }
     }
 }

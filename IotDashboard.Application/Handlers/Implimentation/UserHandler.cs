@@ -244,6 +244,32 @@ namespace IotDashboard.Application.Handlers.Implimentation
             return response;
         }
 
+        public async Task<Response<List<object>>> GetAllAsync()
+        {
+            Response<List<object>> response = new Response<List<object>> { Status = _error };
+            try
+            {
+                var users = await _userManager.Users
+                    .Select(u => new
+                    {
+                        u.Id,
+                        u.UserName,
+                        u.Email,
+                        u.PhoneNumber,
+                        u.CustomerId
+                    })
+                    .ToListAsync();
+
+                response.Status = _success;
+                response.Data = users.Cast<object>().ToList();
+            }
+            catch (Exception ex)
+            {
+                response.Message.Add(ex.Message);
+            }
+            return response;
+        }
+
         private async Task<string> GetRefreshToken(User user)
         {
             string token = Guid.NewGuid().ToString() + user.Id + DateTime.UtcNow.ToString("dd-MM-yy-H-m-ss");
