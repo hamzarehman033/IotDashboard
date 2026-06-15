@@ -7,9 +7,6 @@ namespace IotDashboard.Application.Validators
     {
         public SubscriptionDetailVMValidator()
         {
-            RuleFor(x => x.CustomerId)
-                .GreaterThan(0).WithMessage("CustomerId is required");
-
             RuleFor(x => x.Status)
                 .NotEmpty().WithMessage("Status is required")
                 .MaximumLength(50);

@@ -12,6 +12,18 @@ namespace IotDashboard.Api.Util
             if (operation.Parameters == null)
                 operation.Parameters = new List<OpenApiParameter>();
 
+            if (!operation.Parameters.Any(p => p.In == ParameterLocation.Header && p.Name == "X-Customer-Id"))
+            {
+                operation.Parameters.Add(new OpenApiParameter
+                {
+                    Name = "X-Customer-Id",
+                    In = ParameterLocation.Header,
+                    Schema = new OpenApiSchema { Type = "integer", Format = "int64" },
+                    Required = false,
+                    Description = "Tenant customer identifier used to scope tenant-aware endpoints"
+                });
+            }
+
             foreach (var parameter in context.ApiDescription.ActionDescriptor.Parameters)
             {
                 if (parameter.ParameterType == typeof(IEnumerable<FilterVM>))

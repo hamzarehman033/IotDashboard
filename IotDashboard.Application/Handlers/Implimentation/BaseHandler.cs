@@ -10,6 +10,8 @@ using AutoMapper.Internal;
 using IotDashboard.Application.Validators;
 using System.Linq.Expressions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using System.Reflection;
 
 
 
@@ -24,6 +26,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
         protected readonly string _success;
         protected readonly string _error;
         protected IHttpContextAccessor _httpContextAccessor;
+        private readonly PropertyInfo? _customerIdProperty;
 
         public BaseHandler(IBaseRepository<TModel> repo, IMapper mapper, 
             IValidator<TVM> validator, FilterValidator<TVM> filterValidator,
@@ -36,6 +39,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
             _success = httpContextAccessor.GetResourceString("global.status.success");
             _error = httpContextAccessor.GetResourceString("global.status.error");
             _httpContextAccessor = httpContextAccessor;
+            _customerIdProperty = typeof(TModel).GetProperty("CustomerId");
         }
 
         public virtual async Task<Response<TVM>> CreateAsync(TVM model)
@@ -46,6 +50,12 @@ namespace IotDashboard.Application.Handlers.Implimentation
             {
                 TModel obj = _mapper.Map<TModel>(model);
                 obj.IsActive = true;
+                if (_customerIdProperty != null)
+                {
+                    if (!GetCustomerId(out var customerId))
+                        return ErrorResponse<TVM>("A valid X-Customer-Id header is required.");
+                    _customerIdProperty.SetValue(obj, customerId);
+                }
                 await _repo.CreateAsync(obj);
                 response.Data = model;
                 response.Status = _success;
@@ -60,7 +70,20 @@ namespace IotDashboard.Application.Handlers.Implimentation
 
         public virtual async Task<Response<TVM>> DeleteAsync(long Id)
         {
-            await _repo.DeleteAsync(Id);
+            if (_customerIdProperty != null)
+            {
+                if (!GetCustomerId(out var customerId))
+                    return ErrorResponse<TVM>("A valid X-Customer-Id header is required.");
+                var model = await GetTenantRecord(Id, customerId);
+                if (model == null)
+                    return ErrorResponse<TVM>("Record not found.");
+                model.IsActive = false;
+                await _repo.UpdateAsync(model);
+            }
+            else
+            {
+                await _repo.DeleteAsync(Id);
+            }
             Response<TVM> response = new Response<TVM>();
             response.Status = _success;
             response.Message.Add(_httpContextAccessor.GetResourceString("global.delete"));
@@ -70,10 +93,17 @@ namespace IotDashboard.Application.Handlers.Implimentation
         public virtual async Task<Response<PagerModel<TVM>>> GetAllAsync(int pageSize = 10, int currentPage = 1, IEnumerable<FilterVM> filters = null)
         {
             Response<PagerModel<TVM>> response = new Response<PagerModel<TVM>>() { Status = _error };
-            IQueryable<TModel> queryable;
-            if (filters == null || filters.Count() < 1)
-                queryable = _repo.GetAllAsync();
-            else
+            IQueryable<TModel> queryable = _repo.GetAllAsync();
+            if (_customerIdProperty != null)
+            {
+                if (!GetCustomerId(out var customerId))
+                {
+                    response.Message.Add("A valid X-Customer-Id header is required.");
+                    return response;
+                }
+                queryable = queryable.Where(x => (long)_customerIdProperty.GetValue(x)! == customerId);
+            }
+            if (filters != null && filters.Count() > 0)
             {
                 var validationResult = await _filterValidator.ValidateAsync(filters);
                 if (!validationResult.IsValid)
@@ -81,7 +111,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
                     response.Message = validationResult.ToErrorMessage();
                     return response;
                 }
-                queryable = _repo.GetAllAsync(GetFitlerPredicate(filters));
+                queryable = queryable.Where(GetFitlerPredicate(filters));
             }
             response.Data = await queryable.ToPageAsync<TVM, TModel>(pageSize, currentPage, _mapper);
             response.Status = _success;
@@ -92,20 +122,46 @@ namespace IotDashboard.Application.Handlers.Implimentation
         public virtual async Task<Response<TVM>> GetByIdAsync(long Id)
         {
             Response<TVM> response = new Response<TVM>();
+            TModel? model;
+            if (_customerIdProperty != null)
+            {
+                if (!GetCustomerId(out var customerId))
+                {
+                    response.Status = _error;
+                    response.Message.Add("A valid X-Customer-Id header is required.");
+                    return response;
+                }
+                model = await GetTenantRecord(Id, customerId);
+            }
+            else
+            {
+                model = await _repo.GetByIdAsync(Id);
+            }
+            if (model == null)
+            {
+                response.Status = _error;
+                response.Message.Add("Record not found.");
+                return response;
+            }
             response.Status = _success;
-            TModel model = await _repo.GetByIdAsync(Id);
             response.Data = _mapper.Map<TVM>(model);
             return response;
         }
 
         public virtual async Task<Response<TVM>> UpdateAsync(long Id, TVM model)
         {
-
             Response<TVM> response = new Response<TVM>();
             ValidationResult result = await _validator.ValidateAsync(model);
             if (result.IsValid)
             {
                 TModel obj = _mapper.Map<TModel>(model);
+                obj.Id = Id;
+                if (_customerIdProperty != null)
+                {
+                    if (!GetCustomerId(out var customerId))
+                        return ErrorResponse<TVM>("A valid X-Customer-Id header is required.");
+                    _customerIdProperty.SetValue(obj, customerId);
+                }
                 await _repo.UpdateAsync(obj);
                 response.Data = model;
                 response.Status = _success;
@@ -185,6 +241,31 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 default:
                     throw new NotSupportedException(string.Format(_httpContextAccessor.GetResourceString("validations.filter.operator"), @operator));
             }
+        }
+
+        private bool GetCustomerId(out long customerId)
+        {
+            customerId = 0;
+            var headerValue = _httpContextAccessor.HttpContext?.Request?.Headers["X-Customer-Id"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(headerValue) || !long.TryParse(headerValue, out customerId) || customerId <= 0)
+                return false;
+            return true;
+        }
+
+        private async Task<TModel?> GetTenantRecord(long id, long customerId)
+        {
+            return await _repo.GetAllAsync()
+                .Where(x => (long)_customerIdProperty!.GetValue(x)! == customerId && x.Id == id)
+                .FirstOrDefaultAsync();
+        }
+
+        private Response<TData> ErrorResponse<TData>(string message)
+        {
+            return new Response<TData>
+            {
+                Status = _error,
+                Message = new List<string> { message }
+            };
         }
     }
 }

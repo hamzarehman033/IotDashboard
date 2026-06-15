@@ -17,9 +17,6 @@ namespace IotDashboard.Application.Validators
 
             RuleFor(x => x.Level)
                 .InclusiveBetween(1, 3).WithMessage("Level must be 1 (Region), 2 (SubRegion), or 3 (Zone)");
-
-            RuleFor(x => x.CustomerId)
-                .GreaterThan(0).WithMessage("CustomerId is required");
         }
     }
 }
