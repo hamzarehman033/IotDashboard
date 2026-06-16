@@ -74,5 +74,29 @@ namespace IotDashboard.Api.Controllers
             var data = await _userHandler.GetAllAsync();
             return data.ToResponse();
         }
+
+        [Authorize(Roles = "SysAdmin")]
+        [HttpGet("users/{userId}")]
+        public async Task<IActionResult> GetUserById(long userId)
+        {
+            var data = await _userHandler.GetById(userId);
+            return data.ToResponse();
+        }
+
+        [Authorize(Roles = "SysAdmin")]
+        [HttpPost("users/{userId}")]
+        public async Task<IActionResult> UpdateUser(long userId, UpdateUserVM model)
+        {
+            var data = await _userHandler.UpdateUser(userId, model);
+            return data.ToResponse();
+        }
+
+        [Authorize(Roles = "SysAdmin")]
+        [HttpDelete("users/{userId}")]
+        public async Task<IActionResult> DeleteUser(long userId)
+        {
+            var data = await _userHandler.DeleteUser(userId);
+            return data.ToResponse();
+        }
     }
 }

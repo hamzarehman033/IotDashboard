@@ -17,5 +17,8 @@ namespace IotDashboard.Application.Handlers.Interface
         Task<Response<string>> GetForgotPasswordToken(string emailorPhone);
         Task<Response<string>> ResetPassword(ResetPasswordVM model);
         Task<Response<List<object>>> GetAllAsync();
+        Task<Response<UserVM>> GetById(long userId);
+        Task<Response<string>> UpdateUser(long userId, UpdateUserVM model);
+        Task<Response<string>> DeleteUser(long userId);
     }
 }

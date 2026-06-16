@@ -249,24 +249,147 @@ namespace IotDashboard.Application.Handlers.Implimentation
             Response<List<object>> response = new Response<List<object>> { Status = _error };
             try
             {
-                var users = await _userManager.Users
-                    .Select(u => new
+                var users = await _userManager.Users.ToListAsync();
+                var usersWithRoles = new List<object>();
+
+                foreach (var user in users)
+                {
+                    var roles = await _userManager.GetRolesAsync(user);
+                    usersWithRoles.Add(new
                     {
-                        u.Id,
-                        u.UserName,
-                        u.Email,
-                        u.PhoneNumber,
-                        u.CustomerId
-                    })
-                    .ToListAsync();
+                        user.Id,
+                        user.UserName,
+                        user.Email,
+                        user.PhoneNumber,
+                        user.CustomerId,
+                        Roles = roles.ToList()
+                    });
+                }
 
                 response.Status = _success;
-                response.Data = users.Cast<object>().ToList();
+                response.Data = usersWithRoles;
             }
             catch (Exception ex)
             {
                 response.Message.Add(ex.Message);
             }
+            return response;
+        }
+
+        public async Task<Response<UserVM>> GetById(long userId)
+        {
+            Response<UserVM> response = new Response<UserVM> { Status = _error };
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                response.Message.Add("User not found.");
+                return response;
+            }
+
+            var roles = await _userManager.GetRolesAsync(user);
+
+            response.Status = _success;
+            response.Data = new UserVM
+            {
+                Id = user.Id,
+                UserName = user.UserName,
+                Email = user.Email,
+                CustomerId = user.CustomerId,
+                Roles = roles.ToList()
+            };
+            return response;
+        }
+
+        public async Task<Response<string>> UpdateUser(long userId, UpdateUserVM model)
+        {
+            Response<string> response = new Response<string> { Status = _error };
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                response.Message.Add("User not found.");
+                return response;
+            }
+
+            if (!string.IsNullOrWhiteSpace(model.Role) && !await _roleManager.RoleExistsAsync(model.Role))
+            {
+                response.Message.Add("Selected role does not exist.");
+                return response;
+            }
+
+            // Update user properties
+            user.UserName = model.UserName ?? user.UserName;
+            user.Email = model.Email ?? user.Email;
+            user.PhoneNumber = model.PhoneNumber ?? user.PhoneNumber;
+
+            var result = await _userManager.UpdateAsync(user);
+            if (result.Succeeded)
+            {
+                if (!string.IsNullOrWhiteSpace(model.Role))
+                {
+                    var currentRoles = await _userManager.GetRolesAsync(user);
+                    var rolesToRemove = currentRoles
+                        .Where(x => !x.Equals(model.Role, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+
+                    if (rolesToRemove.Any())
+                    {
+                        var removeRolesResult = await _userManager.RemoveFromRolesAsync(user, rolesToRemove);
+                        if (!removeRolesResult.Succeeded)
+                        {
+                            response.Message = removeRolesResult.Errors.Select(x => x.Description).ToList();
+                            return response;
+                        }
+                    }
+
+                    if (!currentRoles.Any(x => x.Equals(model.Role, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        var addRoleResult = await _userManager.AddToRoleAsync(user, model.Role);
+                        if (!addRoleResult.Succeeded)
+                        {
+                            response.Message = addRoleResult.Errors.Select(x => x.Description).ToList();
+                            return response;
+                        }
+                    }
+                }
+
+                response.Status = _success;
+                response.Data = "User updated successfully.";
+                response.Message.Add(response.Data);
+                if (!string.IsNullOrWhiteSpace(model.Role))
+                {
+                    response.Message.Add($"User role updated to '{model.Role}'.");
+                }
+            }
+            else
+            {
+                response.Message = result.Errors.Select(x => x.Description).ToList();
+            }
+
+            return response;
+        }
+
+        public async Task<Response<string>> DeleteUser(long userId)
+        {
+            Response<string> response = new Response<string> { Status = _error };
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null)
+            {
+                response.Message.Add("User not found.");
+                return response;
+            }
+
+            var result = await _userManager.DeleteAsync(user);
+            if (result.Succeeded)
+            {
+                response.Status = _success;
+                response.Data = "User deleted successfully.";
+                response.Message.Add(response.Data);
+            }
+            else
+            {
+                response.Message = result.Errors.Select(x => x.Description).ToList();
+            }
+
             return response;
         }
 
