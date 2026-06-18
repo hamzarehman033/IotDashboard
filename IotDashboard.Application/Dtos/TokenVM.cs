@@ -14,10 +14,12 @@ namespace IotDashboard.Application.Dtos
             RefreshToken = string.Empty;
             Name = string.Empty;
             Roles = new List<string>();
+            Modules = new List<long>();
         }
         public string Token { get; set; }
         public string RefreshToken { get; set; }
         public string Name { get; set; }
         public List<string> Roles { get; set; }
+        public List<long> Modules { get; set; }
     }
 }

@@ -25,6 +25,9 @@ namespace IotDashboard.Application.Validators
             RuleFor(x => x.UserName).NotEmpty().WithMessage(_httpContextAccessor.GetResourceString("validations.required")).CustomAsync(CheckUserName);
             RuleFor(x => x.Role).NotEmpty().WithMessage(_httpContextAccessor.GetResourceString("validations.required"));
             RuleFor(x => x.CustomerId).CustomAsync(ValidateCustomerLinking);
+            RuleForEach(x => x.Modules)
+                .GreaterThan(0)
+                .WithMessage("Module ids must be greater than 0");
         }
 
         private async Task CheckEmail(string email, ValidationContext<CreateUserVM> context, CancellationToken token)

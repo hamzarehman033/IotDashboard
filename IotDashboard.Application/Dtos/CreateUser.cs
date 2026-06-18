@@ -8,6 +8,7 @@ namespace IotDashboard.Application.Dtos
             Password = string.Empty;
             Email = string.Empty;
             Role = string.Empty;
+            Modules = new List<long>();
         }
 
         public string UserName { get; set; }
@@ -15,5 +16,6 @@ namespace IotDashboard.Application.Dtos
         public string Email { get; set; }
         public string Role { get; set; }
         public long? CustomerId { get; set; }
+        public List<long> Modules { get; set; }
     }
 }

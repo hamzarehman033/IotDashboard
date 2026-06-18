@@ -12,11 +12,13 @@ namespace IotDashboard.Domain.Entities
         public User()
         {
             RefreshToken = string.Empty;
+            Modules = new List<long>();
         }
         public string RefreshToken { get; set; }
-            public long? CustomerId { get; set; }
+        public long? CustomerId { get; set; }
+        public List<long> Modules { get; set; }
 
         public ICollection<UserToken> Tokens { get; } = new List<UserToken>();
-            public Customer? Customer { get; set; }
+        public Customer? Customer { get; set; }
     }
 }

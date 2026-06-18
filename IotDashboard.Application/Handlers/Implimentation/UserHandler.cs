@@ -64,11 +64,13 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 {
                     var roles = await _userManager.GetRolesAsync(user);
                     response.Status = _success;
+                    var modules = user.Modules?.Distinct().ToList() ?? new List<long>();
                     response.Data = new TokenVM
                     {
                         Name = user.UserName,
                         Roles = roles.ToList(),
-                        Token = GenerateToken(user, roles.ToList()),
+                        Modules = modules,
+                        Token = GenerateToken(user, roles.ToList(), modules),
                         RefreshToken = await GetRefreshToken(user),
                     };
                 }
@@ -124,7 +126,11 @@ namespace IotDashboard.Application.Handlers.Implimentation
             { 
                 UserName = model.UserName, 
                 Email = model.Email,
-                CustomerId = model.CustomerId
+                CustomerId = model.CustomerId,
+                Modules = model.Modules
+                    .Where(x => x > 0)
+                    .Distinct()
+                    .ToList()
             };
             var userCreationResult = await _userManager.CreateAsync(user, model.Password);
             if (!userCreationResult.Succeeded)
@@ -162,11 +168,13 @@ namespace IotDashboard.Application.Handlers.Implimentation
             {
                 var roles = await _userManager.GetRolesAsync(user);
                 response.Status = _success;
+                var modules = user.Modules?.Distinct().ToList() ?? new List<long>();
                 response.Data = new TokenVM
                 {
                     Name = user.UserName,
                     Roles = roles.ToList(),
-                    Token = GenerateToken(user, roles.ToList()),
+                    Modules = modules,
+                    Token = GenerateToken(user, roles.ToList(), modules),
                     RefreshToken = await GetRefreshToken(user),
                 };
             }
@@ -262,6 +270,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
                         user.Email,
                         user.PhoneNumber,
                         user.CustomerId,
+                        Modules = user.Modules ?? new List<long>(),
                         Roles = roles.ToList()
                     });
                 }
@@ -295,6 +304,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 UserName = user.UserName,
                 Email = user.Email,
                 CustomerId = user.CustomerId,
+                Modules = user.Modules ?? new List<long>(),
                 Roles = roles.ToList()
             };
             return response;
@@ -320,6 +330,13 @@ namespace IotDashboard.Application.Handlers.Implimentation
             user.UserName = model.UserName ?? user.UserName;
             user.Email = model.Email ?? user.Email;
             user.PhoneNumber = model.PhoneNumber ?? user.PhoneNumber;
+            if (model.Modules != null)
+            {
+                user.Modules = model.Modules
+                    .Where(x => x > 0)
+                    .Distinct()
+                    .ToList();
+            }
 
             var result = await _userManager.UpdateAsync(user);
             if (result.Succeeded)
@@ -401,7 +418,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
             return token;
         }
 
-        private string GenerateToken(User user, List<string> roles)
+        private string GenerateToken(User user, List<string> roles, List<long> modules)
         {
             var authClaims = new List<Claim>
             {
@@ -413,6 +430,11 @@ namespace IotDashboard.Application.Handlers.Implimentation
             foreach (var userRole in roles)
             {
                 authClaims.Add(new Claim(ClaimTypes.Role, userRole));
+            }
+
+            foreach (var module in modules)
+            {
+                authClaims.Add(new Claim("module", module.ToString()));
             }
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtConfigs.Key));
