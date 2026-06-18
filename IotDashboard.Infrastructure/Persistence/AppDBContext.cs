@@ -107,6 +107,20 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
             });
 
+            modelBuilder.Entity<Tenant>(entity =>
+            {
+                entity.ToTable("Tenants").HasKey(x => x.Id);
+                entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.Code).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.Status).HasMaxLength(50).IsRequired();
+                entity.HasIndex(x => new { x.CustomerId, x.Code }).IsUnique();
+                entity.HasOne(x => x.Customer)
+                    .WithMany()
+                    .HasForeignKey(x => x.CustomerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
+            });
+
             modelBuilder.Entity<Lookup>(entity =>
             {
                 entity.ToTable("Lookups").HasKey(x => x.Id);
@@ -139,6 +153,7 @@ namespace IotDashboard.Infrastructure.Persistence
         public DbSet<Customer> Customers { get; set; }
         public DbSet<Subscription> Subscriptions { get; set; }
         public DbSet<Location> Locations { get; set; }
+        public DbSet<Tenant> Tenants { get; set; }
         public DbSet<Lookup> Lookups { get; set; }
 
         public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
@@ -153,6 +168,11 @@ namespace IotDashboard.Infrastructure.Persistence
                 .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
             foreach (var entity in modifiedEntries)
             {
+                if (entity.Entity is Tenant tenant)
+                {
+                    tenant.CustomerId = _currentUserService.GetCustomerId();
+                }
+
                 if (entity.Entity is BaseEntity bentity)
                 {
                     switch (entity.State)
