@@ -9,5 +9,6 @@ namespace IotDashboard.Infrastructure.AuditServices
     public interface ICurrentUserService
     {
         long GetLoggedInUserId();
+        long GetCustomerId();
     }
 }

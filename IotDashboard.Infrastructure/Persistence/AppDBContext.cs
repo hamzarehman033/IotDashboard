@@ -85,6 +85,8 @@ namespace IotDashboard.Infrastructure.Persistence
                     .WithOne(x => x.Subscription)
                     .HasForeignKey<Subscription>(x => x.CustomerId)
                     .OnDelete(DeleteBehavior.Cascade);
+                entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
+
             });
 
             modelBuilder.Entity<Location>(entity =>
@@ -102,6 +104,7 @@ namespace IotDashboard.Infrastructure.Persistence
                     .WithMany(x => x.Children)
                     .HasForeignKey(x => x.ParentId)
                     .OnDelete(DeleteBehavior.Cascade);
+                entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
             });
 
             modelBuilder.Entity<Lookup>(entity =>

@@ -20,5 +20,11 @@ namespace IotDashboard.Infrastructure.AuditServices
             string id = claim == null ? "0" : claim.Value;
             return Convert.ToInt64(id);
         }
+        public long GetCustomerId()
+        {
+            var customerId = _context.HttpContext?.Request?.Headers["X-Customer-Id"].FirstOrDefault();
+            string id = customerId == null ? "0" : customerId;
+            return Convert.ToInt64(id);
+        }
     }
 }
