@@ -30,6 +30,7 @@ namespace IotDashboard.Infrastructure.Util
             services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
             services.AddScoped<ILocationRepository, LocationRepository>();
             services.AddScoped<ITenantRepository, TenantRepository>();
+            services.AddScoped<ISiteRepository, SiteRepository>();
             services.AddScoped<ILookupRepository, LookupRepository>();
         }
 

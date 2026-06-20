@@ -124,6 +124,33 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
             });
 
+            modelBuilder.Entity<Site>(entity =>
+            {
+                entity.ToTable("Sites").HasKey(x => x.Id);
+                entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.Code).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.Status).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.Coordinates).HasMaxLength(100).IsRequired();
+                entity.HasIndex(x => new { x.CustomerId, x.Code }).IsUnique();
+                entity.HasOne(x => x.Customer)
+                    .WithMany()
+                    .HasForeignKey(x => x.CustomerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.Region)
+                    .WithMany()
+                    .HasForeignKey(x => x.RegionId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.SubRegion)
+                    .WithMany()
+                    .HasForeignKey(x => x.SubRegionId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Zone)
+                    .WithMany()
+                    .HasForeignKey(x => x.ZoneId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
+            });
+
             modelBuilder.Entity<Lookup>(entity =>
             {
                 entity.ToTable("Lookups").HasKey(x => x.Id);
@@ -157,6 +184,7 @@ namespace IotDashboard.Infrastructure.Persistence
         public DbSet<Subscription> Subscriptions { get; set; }
         public DbSet<Location> Locations { get; set; }
         public DbSet<Tenant> Tenants { get; set; }
+        public DbSet<Site> Sites { get; set; }
         public DbSet<Lookup> Lookups { get; set; }
 
         public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
@@ -174,6 +202,11 @@ namespace IotDashboard.Infrastructure.Persistence
                 if (entity.Entity is Tenant tenant)
                 {
                     tenant.CustomerId = _currentUserService.GetCustomerId();
+                }
+
+                if (entity.Entity is Site site)
+                {
+                    site.CustomerId = _currentUserService.GetCustomerId();
                 }
 
                 if (entity.Entity is BaseEntity bentity)
