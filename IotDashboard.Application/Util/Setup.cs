@@ -43,6 +43,7 @@ namespace IotDashboard.Application.Util
             services.AddScoped<IValidator<LocationVM>, LocationVMValidator>();
             services.AddScoped<IValidator<TenantVM>, TenantVMValidator>();
             services.AddScoped<IValidator<SiteVM>, SiteVMValidator>();
+            services.AddScoped<IValidator<DeviceVM>, DeviceVMValidator>();
             services.AddScoped<IValidator<LookupVM>, LookupVMValidator>();
             services.AddTransient(typeof(FilterValidator<>));
         }
@@ -55,6 +56,7 @@ namespace IotDashboard.Application.Util
             services.AddScoped<ILocationHandler, LocationHandler>();
             services.AddScoped<ITenantHandler, TenantHandler>();
             services.AddScoped<ISiteHandler, SiteHandler>();
+            services.AddScoped<IDeviceHandler, DeviceHandler>();
             services.AddScoped<ILookupHandler, LookupHandler>();
         }
 
