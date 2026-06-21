@@ -11,8 +11,18 @@ namespace IotDashboard.Api.Controllers
     [Authorize]
     public class SiteController : BaseController<SiteVM>
     {
+        private readonly ISiteHandler _siteHandler;
+
         public SiteController(ISiteHandler siteHandler) : base(siteHandler)
         {
+            _siteHandler = siteHandler;
+        }
+
+        [HttpGet("combined")]
+        public async Task<IActionResult> GetCombined()
+        {
+            var res = await _siteHandler.GetCombinedAsync();
+            return res.ToResponse();
         }
     }
 }

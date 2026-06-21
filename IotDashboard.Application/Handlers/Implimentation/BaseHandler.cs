@@ -46,8 +46,8 @@ namespace IotDashboard.Application.Handlers.Implimentation
             {
                 TModel obj = _mapper.Map<TModel>(model);
                 obj.IsActive = true;
-                await _repo.CreateAsync(obj);
-                response.Data = model;
+                var saved = await _repo.CreateAsync(obj);
+                response.Data = _mapper.Map<TVM>(saved);
                 response.Status = _success;
             }
             else
@@ -107,8 +107,8 @@ namespace IotDashboard.Application.Handlers.Implimentation
             {
                 TModel obj = _mapper.Map<TModel>(model);
                 obj.IsActive = true;
-                await _repo.UpdateAsync(obj);
-                response.Data = model;
+                var saved = await _repo.UpdateAsync(obj);
+                response.Data = _mapper.Map<TVM>(saved);
                 response.Status = _success;
             }
             else

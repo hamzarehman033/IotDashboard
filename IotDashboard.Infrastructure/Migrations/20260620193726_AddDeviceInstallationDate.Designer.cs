@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using IotDashboard.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace IotDashboard.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDBContext))]
-    partial class AppDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260620193726_AddDeviceInstallationDate")]
+    partial class AddDeviceInstallationDate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -89,32 +92,10 @@ namespace IotDashboard.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<bool>("AiEhsInstalled")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("AiSecurityInstalled")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("AiSubscribeTopic")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
-
-                    b.Property<string>("BatteryBrand")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("BatteryCapacity")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("BatteryQty")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("CamerasInstalledCount")
-                        .HasColumnType("integer");
 
                     b.Property<string>("Code")
                         .IsRequired()
@@ -129,19 +110,6 @@ namespace IotDashboard.Infrastructure.Migrations
 
                     b.Property<long>("CustomerId")
                         .HasColumnType("bigint");
-
-                    b.Property<string>("GeneratorBrand")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("GeneratorCapacity")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("GeneratorQty")
-                        .HasColumnType("integer");
 
                     b.Property<DateTime>("InstallationDate")
                         .HasColumnType("timestamp with time zone");
@@ -186,49 +154,13 @@ namespace IotDashboard.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
-                    b.Property<string>("RectifierBrand")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("RectifierCapacity")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("RectifierQty")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("RmsSerialNumber")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.Property<string>("RmsSubscribeTopic")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
-                    b.Property<string>("SimCardNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
                     b.Property<long>("SiteId")
                         .HasColumnType("bigint");
-
-                    b.Property<string>("SolarBrand")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("SolarCapacity")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<int>("SolarQty")
-                        .HasColumnType("integer");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -357,7 +289,7 @@ namespace IotDashboard.Infrastructure.Migrations
                             Id = 1L,
                             Category = "LocationType",
                             CreatedBy = 1L,
-                            CreatedOn = new DateTime(2026, 6, 21, 19, 36, 25, 320, DateTimeKind.Utc).AddTicks(5617),
+                            CreatedOn = new DateTime(2026, 6, 20, 19, 37, 26, 11, DateTimeKind.Utc).AddTicks(1726),
                             IsActive = true,
                             Name = "Region",
                             Order = 1,
@@ -368,7 +300,7 @@ namespace IotDashboard.Infrastructure.Migrations
                             Id = 2L,
                             Category = "LocationType",
                             CreatedBy = 1L,
-                            CreatedOn = new DateTime(2026, 6, 21, 19, 36, 25, 320, DateTimeKind.Utc).AddTicks(5621),
+                            CreatedOn = new DateTime(2026, 6, 20, 19, 37, 26, 11, DateTimeKind.Utc).AddTicks(1730),
                             IsActive = true,
                             Name = "SubRegion",
                             Order = 2,
@@ -379,7 +311,7 @@ namespace IotDashboard.Infrastructure.Migrations
                             Id = 3L,
                             Category = "LocationType",
                             CreatedBy = 1L,
-                            CreatedOn = new DateTime(2026, 6, 21, 19, 36, 25, 320, DateTimeKind.Utc).AddTicks(5623),
+                            CreatedOn = new DateTime(2026, 6, 20, 19, 37, 26, 11, DateTimeKind.Utc).AddTicks(1732),
                             IsActive = true,
                             Name = "Zone",
                             Order = 3,
@@ -390,7 +322,7 @@ namespace IotDashboard.Infrastructure.Migrations
                             Id = 4L,
                             Category = "Status",
                             CreatedBy = 1L,
-                            CreatedOn = new DateTime(2026, 6, 21, 19, 36, 25, 320, DateTimeKind.Utc).AddTicks(5625),
+                            CreatedOn = new DateTime(2026, 6, 20, 19, 37, 26, 11, DateTimeKind.Utc).AddTicks(1734),
                             IsActive = true,
                             Name = "Active",
                             Order = 1,
@@ -401,7 +333,7 @@ namespace IotDashboard.Infrastructure.Migrations
                             Id = 5L,
                             Category = "Status",
                             CreatedBy = 1L,
-                            CreatedOn = new DateTime(2026, 6, 21, 19, 36, 25, 320, DateTimeKind.Utc).AddTicks(5627),
+                            CreatedOn = new DateTime(2026, 6, 20, 19, 37, 26, 11, DateTimeKind.Utc).AddTicks(1772),
                             IsActive = true,
                             Name = "Inactive",
                             Order = 2,
@@ -412,7 +344,7 @@ namespace IotDashboard.Infrastructure.Migrations
                             Id = 6L,
                             Category = "Status",
                             CreatedBy = 1L,
-                            CreatedOn = new DateTime(2026, 6, 21, 19, 36, 25, 320, DateTimeKind.Utc).AddTicks(5629),
+                            CreatedOn = new DateTime(2026, 6, 20, 19, 37, 26, 11, DateTimeKind.Utc).AddTicks(1774),
                             IsActive = true,
                             Name = "Suspended",
                             Order = 3,
@@ -423,7 +355,7 @@ namespace IotDashboard.Infrastructure.Migrations
                             Id = 7L,
                             Category = "SubscriptionStatus",
                             CreatedBy = 1L,
-                            CreatedOn = new DateTime(2026, 6, 21, 19, 36, 25, 320, DateTimeKind.Utc).AddTicks(5630),
+                            CreatedOn = new DateTime(2026, 6, 20, 19, 37, 26, 11, DateTimeKind.Utc).AddTicks(1776),
                             IsActive = true,
                             Name = "Active",
                             Order = 1,
@@ -434,7 +366,7 @@ namespace IotDashboard.Infrastructure.Migrations
                             Id = 8L,
                             Category = "SubscriptionStatus",
                             CreatedBy = 1L,
-                            CreatedOn = new DateTime(2026, 6, 21, 19, 36, 25, 320, DateTimeKind.Utc).AddTicks(5632),
+                            CreatedOn = new DateTime(2026, 6, 20, 19, 37, 26, 11, DateTimeKind.Utc).AddTicks(1777),
                             IsActive = true,
                             Name = "Inactive",
                             Order = 2,
@@ -445,7 +377,7 @@ namespace IotDashboard.Infrastructure.Migrations
                             Id = 9L,
                             Category = "SubscriptionStatus",
                             CreatedBy = 1L,
-                            CreatedOn = new DateTime(2026, 6, 21, 19, 36, 25, 320, DateTimeKind.Utc).AddTicks(5634),
+                            CreatedOn = new DateTime(2026, 6, 20, 19, 37, 26, 11, DateTimeKind.Utc).AddTicks(1779),
                             IsActive = true,
                             Name = "Expired",
                             Order = 3,

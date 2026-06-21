@@ -22,6 +22,9 @@ namespace IotDashboard.Application.Validators
                 .NotEmpty().WithMessage("Status is required")
                 .MaximumLength(50).WithMessage("Status must be at most 50 characters");
 
+            RuleFor(x => x.InstallationDate)
+                .NotEmpty().WithMessage("Installation date is required");
+
             RuleFor(x => x.MqttHost)
                 .NotEmpty().WithMessage("MQTT host is required")
                 .MaximumLength(255).WithMessage("MQTT host must be at most 255 characters");
@@ -50,6 +53,51 @@ namespace IotDashboard.Application.Validators
             RuleFor(x => x.AiSubscribeTopic)
                 .NotEmpty().WithMessage("AI subscribe topic is required")
                 .MaximumLength(255).WithMessage("AI subscribe topic must be at most 255 characters");
+
+            RuleFor(x => x.RectifierBrand)
+                .MaximumLength(100).WithMessage("Rectifier brand must be at most 100 characters");
+
+            RuleFor(x => x.RectifierQty)
+                .GreaterThanOrEqualTo(0).WithMessage("Rectifier quantity must be 0 or greater");
+
+            RuleFor(x => x.RectifierCapacity)
+                .MaximumLength(100).WithMessage("Rectifier capacity must be at most 100 characters");
+
+            RuleFor(x => x.BatteryBrand)
+                .MaximumLength(100).WithMessage("Battery brand must be at most 100 characters");
+
+            RuleFor(x => x.BatteryQty)
+                .GreaterThanOrEqualTo(0).WithMessage("Battery quantity must be 0 or greater");
+
+            RuleFor(x => x.BatteryCapacity)
+                .MaximumLength(100).WithMessage("Battery capacity must be at most 100 characters");
+
+            RuleFor(x => x.SolarBrand)
+                .MaximumLength(100).WithMessage("Solar brand must be at most 100 characters");
+
+            RuleFor(x => x.SolarQty)
+                .GreaterThanOrEqualTo(0).WithMessage("Solar quantity must be 0 or greater");
+
+            RuleFor(x => x.SolarCapacity)
+                .MaximumLength(100).WithMessage("Solar capacity must be at most 100 characters");
+
+            RuleFor(x => x.GeneratorBrand)
+                .MaximumLength(100).WithMessage("Generator brand must be at most 100 characters");
+
+            RuleFor(x => x.GeneratorQty)
+                .GreaterThanOrEqualTo(0).WithMessage("Generator quantity must be 0 or greater");
+
+            RuleFor(x => x.GeneratorCapacity)
+                .MaximumLength(100).WithMessage("Generator capacity must be at most 100 characters");
+
+            RuleFor(x => x.RmsSerialNumber)
+                .MaximumLength(100).WithMessage("RMS serial number must be at most 100 characters");
+
+            RuleFor(x => x.SimCardNumber)
+                .MaximumLength(50).WithMessage("SIM card number must be at most 50 characters");
+
+            RuleFor(x => x.CamerasInstalledCount)
+                .GreaterThanOrEqualTo(0).WithMessage("Cameras installed count must be 0 or greater");
         }
     }
 }

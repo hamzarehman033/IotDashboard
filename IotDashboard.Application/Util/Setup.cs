@@ -44,6 +44,7 @@ namespace IotDashboard.Application.Util
             services.AddScoped<IValidator<TenantVM>, TenantVMValidator>();
             services.AddScoped<IValidator<SiteVM>, SiteVMValidator>();
             services.AddScoped<IValidator<DeviceVM>, DeviceVMValidator>();
+            services.AddScoped<IValidator<DeviceInfrastructurePatchVM>, DeviceInfrastructurePatchValidator>();
             services.AddScoped<IValidator<LookupVM>, LookupVMValidator>();
             services.AddTransient(typeof(FilterValidator<>));
         }
