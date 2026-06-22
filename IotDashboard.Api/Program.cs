@@ -1,4 +1,6 @@
 using IotDashboard.Api.Util;
+using IotDashboard.Api.Hubs;
+using IotDashboard.Api.Services;
 using IotDashboard.Application.Util;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi.Models;
@@ -39,6 +41,9 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.SetupApplication(builder.Configuration.GetConnectionString("default"), builder.Configuration);
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddSignalR();
+builder.Services.AddScoped<IDeviceDataService, DeviceDataService>();
+builder.Services.AddHostedService<MqttConnectionHostedService>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -58,5 +63,13 @@ app.UseCors(x => x.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 await app.ApplyPendingMigrations();
 app.UseMiddleware<LocalizationMiddleware>();
 app.MapControllers();
+app.MapHub<DeviceDataHub>("/hubs/device-data");
+
+// Initialize device data service for MQTT to SignalR integration
+using (var scope = app.Services.CreateScope())
+{
+    var deviceDataService = scope.ServiceProvider.GetRequiredService<IDeviceDataService>();
+    await deviceDataService.InitializeAsync();
+}
 
 app.Run();

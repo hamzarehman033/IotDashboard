@@ -15,6 +15,7 @@ using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
+using IotDashboard.Infrastructure.ExternalServices.Mqtt;
 
 
 namespace IotDashboard.Application.Util
@@ -29,6 +30,7 @@ namespace IotDashboard.Application.Util
             services.SetupIdentity();
             services.SetupConfigs(configuration);
             services.SetupTokenValidation(configuration);
+            services.SetupMqttClient();
         }
         private static void SetupValidators(this IServiceCollection services)
         {
@@ -97,6 +99,12 @@ namespace IotDashboard.Application.Util
         });
 
 
+        }
+
+        private static void SetupMqttClient(this IServiceCollection services)
+        {
+            services.AddSingleton<IMqttClientService, MqttClientService>();
+            services.AddSingleton<IDeviceDataCache, DeviceDataCache>();
         }
 
         public static async Task<IApplicationBuilder> ApplyPendingMigrations(this IApplicationBuilder app)
