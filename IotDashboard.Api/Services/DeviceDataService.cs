@@ -3,6 +3,7 @@ using IotDashboard.Application.Util;
 using IotDashboard.Api.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace IotDashboard.Api.Services
 {
@@ -22,17 +23,20 @@ namespace IotDashboard.Api.Services
         private readonly IMqttClientService _mqttClientService;
         private readonly IDeviceDataCache _deviceDataCache;
         private readonly IHubContext<DeviceDataHub> _hubContext;
+        private readonly IMqttPayloadDecoder _mqttPayloadDecoder;
         private readonly ILogger<DeviceDataService> _logger;
 
         public DeviceDataService(
             IMqttClientService mqttClientService,
             IDeviceDataCache deviceDataCache,
             IHubContext<DeviceDataHub> hubContext,
+            IMqttPayloadDecoder mqttPayloadDecoder,
             ILogger<DeviceDataService> logger)
         {
             _mqttClientService = mqttClientService;
             _deviceDataCache = deviceDataCache;
             _hubContext = hubContext;
+            _mqttPayloadDecoder = mqttPayloadDecoder;
             _logger = logger;
         }
 
@@ -43,6 +47,8 @@ namespace IotDashboard.Api.Services
             {
                 try
                 {
+                    var decodedPayload = _mqttPayloadDecoder.Decode(eventArgs.Topic, eventArgs.Payload);
+
                     // Store in cache
                     _deviceDataCache.SetDeviceData(eventArgs.DeviceId, eventArgs.Topic, eventArgs.Payload);
 
@@ -55,10 +61,20 @@ namespace IotDashboard.Api.Services
                             DeviceId = eventArgs.DeviceId,
                             Topic = eventArgs.Topic,
                             Payload = eventArgs.Payload,
+                            DecodedPayload = (object?)decodedPayload.TelemetryPacket ?? decodedPayload.Fields,
+                            IsHexPayload = decodedPayload.IsHexPayload,
+                            NormalizedHexPayload = decodedPayload.NormalizedHexPayload,
+                            DecodingError = decodedPayload.Error,
                             ReceivedAt = eventArgs.ReceivedAt
                         });
 
-                    _logger.LogDebug(
+                    if (decodedPayload.TelemetryPacket != null)
+                    {
+                        _logger.LogInformation(
+                            $"Decoded telecom telemetry for device {eventArgs.DeviceId} on topic {eventArgs.Topic}: {JsonSerializer.Serialize(decodedPayload.TelemetryPacket)}");
+                    }
+
+                    _logger.LogInformation(
                         $"Broadcasted device {eventArgs.DeviceId} data to SignalR clients on topic {eventArgs.Topic}");
                 }
                 catch (Exception ex)

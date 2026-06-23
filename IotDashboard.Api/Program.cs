@@ -42,6 +42,7 @@ builder.Services.AddSwaggerGen(c =>
 builder.Services.SetupApplication(builder.Configuration.GetConnectionString("default"), builder.Configuration);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSignalR();
+builder.Services.AddSingleton<IMqttPayloadDecoder, MqttPayloadDecoder>();
 builder.Services.AddScoped<IDeviceDataService, DeviceDataService>();
 builder.Services.AddHostedService<MqttConnectionHostedService>();
 var app = builder.Build();

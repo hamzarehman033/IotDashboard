@@ -1,0 +1,105 @@
+
+## Context
+Devices publish a fixed 160-byte binary payload (big-endian) to MQTT topic:
+  telecom/{tenant_id}/{site_id}/{device_id}/telemetry
+
+
+### 2. TelemetryPacket.cs — decoded model
+A C# record or class with nullable fields for every field in the payload.
+Null means the device sent the invalid sentinel (0xFF / 0xFFFF / 0x7FFF / 0xFFFFFFFF).
+
+Fields (offset | length | type | name | scaling):
+  0x00 | 4  | U32  | EpochTime              | Unix epoch → DateTimeOffset
+  0x04 | 4  | U32  | PortalReceiveTime      | Unix epoch → DateTimeOffset
+  0x08 | 1  | U8   | PacketVersion          |
+  0x09 | 1  | U8   | DeviceType             | enum
+  0x0A | 1  | U8   | Manufacturer           | enum: 1=Huawei,2=Vertiv,3=ZTE,4=Delta,5=Generic
+  0x0B | 1  | U8   | Model                  | enum: 1=SMU03A,2=SMU02C,0x10=GenericSnmp,0x20=GenericModbus
+  0x0C | 4  | U32  | SiteIdHash             | CRC32
+  0x10 | 4  | U32  | DeviceIdHash           | CRC32
+  0x14 | 2  | U16  | PacketSequence         |
+  0x16 | 2  | U16  | SystemStatus           | [Flags] enum: bit0=Normal,bit1=MajorAlarm,bit2=CriticalAlarm,bit3=Warning,bit4=CommsIssue
+  0x18 | 1  | U8   | ActiveAlarmCount       |
+  0x19 | 2  | U16  | LineAVoltage           | ÷10 → V (null if 0xFFFF)
+  0x1B | 2  | U16  | LineBVoltage           | ÷10 → V (null if 0xFFFF)
+  0x1D | 2  | U16  | LineCVoltage           | ÷10 → V (null if 0xFFFF)
+  0x1F | 2  | I16  | LineACurrent           | ÷10 → A (null if 0x7FFF)
+  0x21 | 2  | I16  | LineBCurrent           | ÷10 → A (null if 0x7FFF)
+  0x23 | 2  | I16  | LineCCurrent           | ÷10 → A (null if 0x7FFF)
+  0x25 | 2  | U16  | AcFrequency            | ÷10 → Hz (null if 0xFFFF)
+  0x27 | 4  | U32  | TotalAcInputPowerW     | W (null if 0xFFFFFFFF)
+  0x2B | 4  | U32  | TotalAcEnergyWh        | Wh (null if 0xFFFFFFFF)
+  0x2F | 1  | U8   | MainsAvailable         | 0=no,1=yes
+  0x30 | 1  | U8   | MainsFailure           | 0=normal,1=fault
+  0x31 | 2  | U16  | DcBusVoltage           | ÷10 → V (null if 0xFFFF)
+  0x33 | 2  | I16  | DcLoadCurrent          | ÷10 → A (null if 0x7FFF)
+  0x35 | 4  | U32  | DcLoadPowerW           | W (null if 0xFFFFFFFF)
+  0x39 | 2  | U16  | DcLoadPercent          | ÷10 → % (null if 0xFFFF)
+  0x3B | 4  | U32  | TotalDcEnergyWh        | Wh (null if 0xFFFFFFFF)
+  0x3F | 1  | U8   | RectifierInstalledCount|
+  0x40 | 1  | U8   | RectifierCommCount     |
+  0x41 | 2  | U16  | RectifierTotalCurrent  | ÷10 → A (null if 0xFFFF)
+  0x43 | 4  | U32  | RectifierTotalDcPowerW | W (null if 0xFFFFFFFF)
+  0x47 | 1  | U8   | RectifierAcFail        | bool
+  0x48 | 1  | U8   | RectifierMissing       | bool
+  0x49 | 2  | I16  | RectifierMaxTemperature| ÷10 → °C (null if 0x7FFF)
+  0x4B | 1  | U8   | BatteryStatus          | enum: 0=Unknown,1=Float,2=Boost,3=Discharge,4=Idle
+  0x4C | 2  | U16  | BatteryVoltage         | ÷10 → V (null if 0xFFFF)
+  0x4E | 2  | I16  | BatteryCurrent         | ÷10 → A (null if 0x7FFF)
+  0x50 | 1  | U8   | BatteryRemainingPercent| % (0xFF = null)
+  0x51 | 2  | U16  | BatteryTotalCapacityAh | ÷10 → Ah (null if 0xFFFF)
+  0x53 | 2  | U16  | BatteryRemainingCapacityAh | ÷10 → Ah (null if 0xFFFF)
+  0x55 | 2  | U16  | BatteryBackupTimeMin   | minutes (null if 0xFFFF)
+  0x57 | 2  | I16  | BatteryTemperature     | ÷10 → °C (null if 0x7FFF)
+  0x59 | 1  | U8   | BatterySoh             | % (0xFF = null)
+  0x5A | 1  | U8   | BmuOnlineCount         |
+  0x5B | 2  | U16  | BatteryChargeDischargeKw | ÷100 → kW (null if 0xFFFF)
+  0x5D | 1  | U8   | SolarAvailable         | 0xFF=null,0=no,1=yes
+  0x5E | 2  | U16  | SolarVoltage           | ÷10 → V (null if 0xFFFF)
+  0x60 | 2  | I16  | SolarCurrent           | ÷10 → A (null if 0x7FFF)
+  0x62 | 4  | U32  | SolarPowerW            | W (null if 0xFFFFFFFF)
+  0x66 | 4  | U32  | SolarEnergyTodayWh     | Wh (null if 0xFFFFFFFF)
+  0x6A | 1  | U8   | SolarControllerCount   | 0xFF=null
+  0x6B | 1  | U8   | SolarControllerCommFail| 0xFF=null
+  0x6C | 2  | U16  | SolarChargingHours     | hours (null if 0xFFFF)
+  0x6E | 1  | U8   | GensetAvailable        | 0xFF=null,0=no,1=yes
+  0x6F | 1  | U8   | GensetRunning          | 0xFF=null
+  0x70 | 1  | U8   | GensetStartFailure     | bool
+  0x71 | 1  | U8   | GensetControlMode      | enum: 0xFF=null,0=Unknown,1=Auto,2=Manual,3=Disabled
+  0x72 | 2  | U16  | GensetRunHours         | hours (null if 0xFFFF)
+  0x74 | 2  | U16  | GensetStartCount       | (null if 0xFFFF)
+  0x76 | 1  | U8   | FuelLevelPercent       | % (0xFF=null)
+  0x77 | 2  | U16  | FuelVolumeL            | L (null if 0xFFFF)
+  0x79 | 1  | U8   | FuelTheftAlarm         | 0xFF=null
+  0x7A | 1  | U8   | FuelLowAlarm           | 0xFF=null
+  0x7B | 2  | I16  | AmbientTemperature1    | ÷10 → °C (null if 0x7FFF)
+  0x7D | 2  | I16  | AmbientTemperature2    | ÷10 → °C (null if 0x7FFF)
+  0x7F | 2  | U16  | Humidity               | ÷10 → % (null if 0xFFFF)
+  0x81 | 1  | U8   | DoorOpenAlarm          | 0xFF=null
+  0x82 | 1  | U8   | SmokeAlarm             | 0xFF=null
+  0x83 | 1  | U8   | WaterLeakAlarm         | 0xFF=null
+  0x84 | 1  | U8   | MotionAlarm            | 0xFF=null
+  0x85 | 2  | U16  | DigitalInputBitmap     | bitmask DIN1–DIN16
+  0x87 | 2  | U16  | RelayOutputBitmap      | bitmask DO1–DO16
+  0x89 | 2  | U16  | Alarm1Code             |
+  0x8B | 1  | U8   | Alarm1Level            | enum: 1=Critical,2=Major,3=Minor,4=Warning
+  0x8C | 2  | U16  | Alarm2Code             |
+  0x8E | 1  | U8   | Alarm2Level            |
+  0x8F | 2  | U16  | Alarm3Code             |
+  0x91 | 1  | U8   | Alarm3Level            |
+  0x92 | 4  | U32  | AlarmBitmap1           | [Flags] enum: bit0=MainsFailure,bit1=RectifierAlarm,bit2=BatteryAlarm,bit3=DoorOpen,bit4=GensetRunning,bit5=GensetStartFailure,bit6=SolarCommFail,bit7=FuelLow,bit8=FuelTheft,bit9=TempHigh,bit10=SmokeAlarm,bit11=WaterLeak,bit12=DcUnderVoltage,bit13=DcOverVoltage,bit14=CommFailure
+  0x96 | 8  | —    | Reserved               | skip
+  0x9E | 2  | U16  | Crc16                  | CRC16 of bytes 0x00–0x9D
+
+Also store these from the MQTT topic (not the payload):
+  string TenantId, SiteId, DeviceId
+
+---
+Rules:
+- Validate payload length == 160, throw ArgumentException if not
+- All reads are big-endian (manually shift bytes — do NOT use BinaryPrimitives which is little-endian by default on x86)
+- Use private helpers: ReadU8, ReadU16, ReadI16, ReadU32
+- Apply null sentinels per field spec above
+- Validate CRC16 using the standard CRC-16/ARC or CRC-16/IBM polynomial (0x8005), compute over bytes[0..157], compare to bytes[158..159]
+- Set a bool IsCrcValid on the packet
+- Parse topic string to extract TenantId, SiteId, DeviceId

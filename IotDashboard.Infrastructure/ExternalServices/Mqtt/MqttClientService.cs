@@ -70,7 +70,8 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
                 {
                     try
                     {
-                        var payload = e.ApplicationMessage.ConvertPayloadToString();
+                        var payloadBytes = e.ApplicationMessage.PayloadSegment.ToArray();
+                        var payload = Convert.ToHexString(payloadBytes);
                         var topic = e.ApplicationMessage.Topic;
 
                         var eventArgs = new MqttMessageReceivedEventArgs
@@ -87,7 +88,7 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
                         }
 
                         _logger.LogInformation(
-                            $"Message received from device {deviceId} on topic '{topic}': {payload}");
+                            $"Message received from device {deviceId} on topic '{topic}' with {payloadBytes.Length} bytes");
                     }
                     catch (Exception ex)
                     {
