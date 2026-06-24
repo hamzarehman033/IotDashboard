@@ -173,15 +173,29 @@ namespace IotDashboard.Api.Services
 
             var bytes = Convert.FromHexString(normalized);
 
-            if (!TryParseTelecomTopic(topic, out var tenantId, out var siteId, out var topicDeviceId))
+            var topicMatched = TryParseTelecomTopic(topic, out var tenantId, out var siteId, out var topicDeviceId);
+            if (!topicMatched && bytes.Length != PacketLength)
             {
                 return new MqttPayloadDecodeResult
                 {
                     IsHexPayload = true,
                     NormalizedHexPayload = normalized,
-                    Fields = null,
-                    TelemetryPacket = null
+                    Fields = new Dictionary<string, object>
+                    {
+                        ["Topic"] = topic,
+                        ["PayloadByteLength"] = bytes.Length,
+                        ["ExpectedPacketLength"] = PacketLength
+                    },
+                    TelemetryPacket = null,
+                    Error = $"Topic does not match telecom format and payload length is {bytes.Length} bytes (expected {PacketLength})."
                 };
+            }
+
+            if (!topicMatched)
+            {
+                tenantId = "unknown-tenant";
+                siteId = "unknown-site";
+                topicDeviceId = "unknown-device";
             }
 
             var packet = ParseTelecomTelemetry(bytes, tenantId, siteId, topicDeviceId);
@@ -196,8 +210,10 @@ namespace IotDashboard.Api.Services
                     ["TenantId"] = packet.TenantId,
                     ["SiteId"] = packet.SiteId,
                     ["DeviceId"] = packet.DeviceId,
-                    ["IsCrcValid"] = packet.IsCrcValid
-                }
+                    ["IsCrcValid"] = packet.IsCrcValid,
+                    ["TopicMatchedTelecomPattern"] = topicMatched
+                },
+                Error = topicMatched ? null : "Topic did not match telecom/{tenant}/{site}/{device}/telemetry. Decoded using default identifiers."
             };
         }
 

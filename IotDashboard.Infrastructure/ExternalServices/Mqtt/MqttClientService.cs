@@ -2,6 +2,7 @@ using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Protocol;
 using Microsoft.Extensions.Logging;
+using System.Text;
 
 namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
 {
@@ -71,7 +72,7 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
                     try
                     {
                         var payloadBytes = e.ApplicationMessage.PayloadSegment.ToArray();
-                        var payload = Convert.ToHexString(payloadBytes);
+                        var payload = NormalizeIncomingPayload(payloadBytes);
                         var topic = e.ApplicationMessage.Topic;
 
                         var eventArgs = new MqttMessageReceivedEventArgs
@@ -301,6 +302,54 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
         {
             _messageReceivedCallback = callback;
             _logger.LogInformation("Message received callback registered");
+        }
+
+        private static string NormalizeIncomingPayload(byte[] payloadBytes)
+        {
+            if (payloadBytes.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            var textPayload = Encoding.UTF8.GetString(payloadBytes).Trim();
+            if (TryNormalizeHexString(textPayload, out var normalizedHex))
+            {
+                return normalizedHex;
+            }
+
+            return Convert.ToHexString(payloadBytes);
+        }
+
+        private static bool TryNormalizeHexString(string value, out string normalized)
+        {
+            normalized = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            var compact = value
+                .Replace("0x", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Replace(" ", string.Empty, StringComparison.Ordinal)
+                .Replace("-", string.Empty, StringComparison.Ordinal)
+                .Trim();
+
+            if (compact.Length == 0 || compact.Length % 2 != 0)
+            {
+                return false;
+            }
+
+            foreach (var c in compact)
+            {
+                if (!Uri.IsHexDigit(c))
+                {
+                    return false;
+                }
+            }
+
+            normalized = compact.ToUpperInvariant();
+            return true;
         }
     }
 }
