@@ -24,6 +24,7 @@ namespace IotDashboard.Api.Services
         private readonly IDeviceDataCache _deviceDataCache;
         private readonly IHubContext<DeviceDataHub> _hubContext;
         private readonly IMqttPayloadDecoder _mqttPayloadDecoder;
+        private readonly ITelemetryPersistenceService _telemetryPersistenceService;
         private readonly ILogger<DeviceDataService> _logger;
 
         public DeviceDataService(
@@ -31,12 +32,14 @@ namespace IotDashboard.Api.Services
             IDeviceDataCache deviceDataCache,
             IHubContext<DeviceDataHub> hubContext,
             IMqttPayloadDecoder mqttPayloadDecoder,
+            ITelemetryPersistenceService telemetryPersistenceService,
             ILogger<DeviceDataService> logger)
         {
             _mqttClientService = mqttClientService;
             _deviceDataCache = deviceDataCache;
             _hubContext = hubContext;
             _mqttPayloadDecoder = mqttPayloadDecoder;
+            _telemetryPersistenceService = telemetryPersistenceService;
             _logger = logger;
         }
 
@@ -48,6 +51,11 @@ namespace IotDashboard.Api.Services
                 try
                 {
                     var decodedPayload = _mqttPayloadDecoder.Decode(eventArgs.Topic, eventArgs.Payload);
+
+                    await _telemetryPersistenceService.PersistAsync(
+                        eventArgs.Topic,
+                        decodedPayload,
+                        eventArgs.ReceivedAt);
 
                     // Store in cache
                     _deviceDataCache.SetDeviceData(eventArgs.DeviceId, eventArgs.Topic, eventArgs.Payload);

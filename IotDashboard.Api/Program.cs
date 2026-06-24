@@ -43,6 +43,7 @@ builder.Services.SetupApplication(builder.Configuration.GetConnectionString("def
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IMqttPayloadDecoder, MqttPayloadDecoder>();
+builder.Services.AddSingleton<ITelemetryPersistenceService, TelemetryPersistenceService>();
 builder.Services.AddScoped<IDeviceDataService, DeviceDataService>();
 builder.Services.AddHostedService<MqttConnectionHostedService>();
 var app = builder.Build();

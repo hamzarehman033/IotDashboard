@@ -213,6 +213,33 @@ namespace IotDashboard.Infrastructure.Persistence
                     new Lookup { Id = 9, Category = "SubscriptionStatus", Name = "Expired", Value = "Expired", Order = 3, CreatedBy = 1, CreatedOn = DateTime.UtcNow, IsActive = true }
                 );
             });
+
+            modelBuilder.Entity<TelemetryMessage>(entity =>
+            {
+                entity.ToTable("TelemetryMessages").HasKey(x => x.Id);
+                entity.Property(x => x.TenantId).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.SiteId).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.DeviceId).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.Topic).HasMaxLength(255).IsRequired();
+                entity.Property(x => x.ReceivedAtUtc).IsRequired();
+                entity.Property(x => x.DecodedPayloadJson).HasColumnType("jsonb").IsRequired();
+                entity.Property(x => x.DecodeError).HasMaxLength(2000);
+                entity.HasIndex(x => new { x.TenantId, x.SiteId, x.DeviceId, x.ReceivedAtUtc });
+                entity.HasIndex(x => x.ReceivedAtUtc);
+            });
+
+            modelBuilder.Entity<DeviceTelemetryLatest>(entity =>
+            {
+                entity.ToTable("DeviceTelemetryLatest").HasKey(x => x.Id);
+                entity.Property(x => x.TenantId).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.SiteId).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.DeviceId).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.ReceivedAtUtc).IsRequired();
+                entity.Property(x => x.SummaryPayloadJson).HasColumnType("jsonb").IsRequired();
+                entity.Property(x => x.DecodeError).HasMaxLength(2000);
+                entity.HasIndex(x => x.DeviceId).IsUnique();
+                entity.HasIndex(x => x.SiteId);
+            });
         }
 
         public DbSet<Weather> Weathers { get; set; }
@@ -223,6 +250,8 @@ namespace IotDashboard.Infrastructure.Persistence
         public DbSet<Site> Sites { get; set; }
         public DbSet<Device> Devices { get; set; }
         public DbSet<Lookup> Lookups { get; set; }
+        public DbSet<TelemetryMessage> TelemetryMessages { get; set; }
+        public DbSet<DeviceTelemetryLatest> DeviceTelemetryLatest { get; set; }
 
         public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
         {

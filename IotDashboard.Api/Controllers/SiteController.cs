@@ -1,4 +1,5 @@
 using IotDashboard.Api.Util;
+using IotDashboard.Api.Services;
 using IotDashboard.Application.Dtos;
 using IotDashboard.Application.Handlers.Interface;
 using Microsoft.AspNetCore.Authorization;
@@ -12,10 +13,14 @@ namespace IotDashboard.Api.Controllers
     public class SiteController : BaseController<SiteVM>
     {
         private readonly ISiteHandler _siteHandler;
+        private readonly ITelemetryPersistenceService _telemetryPersistenceService;
 
-        public SiteController(ISiteHandler siteHandler) : base(siteHandler)
+        public SiteController(
+            ISiteHandler siteHandler,
+            ITelemetryPersistenceService telemetryPersistenceService) : base(siteHandler)
         {
             _siteHandler = siteHandler;
+            _telemetryPersistenceService = telemetryPersistenceService;
         }
 
         [HttpGet("combined")]
@@ -23,6 +28,13 @@ namespace IotDashboard.Api.Controllers
         {
             var res = await _siteHandler.GetCombinedAsync();
             return res.ToResponse();
+        }
+
+        [HttpGet("{siteId}/latest-status")]
+        public async Task<IActionResult> GetLatestStatusBySite(string siteId, CancellationToken cancellationToken)
+        {
+            var data = await _telemetryPersistenceService.GetLatestBySiteAsync(siteId, cancellationToken);
+            return Ok(data);
         }
     }
 }
