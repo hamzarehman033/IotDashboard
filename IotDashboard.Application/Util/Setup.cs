@@ -61,6 +61,7 @@ namespace IotDashboard.Application.Util
             services.AddScoped<ISiteHandler, SiteHandler>();
             services.AddScoped<IDeviceHandler, DeviceHandler>();
             services.AddScoped<ILookupHandler, LookupHandler>();
+            services.AddScoped<ITelemetryHandler, TelemetryHandler>();
         }
 
         private static void SetupIdentity(this IServiceCollection services)

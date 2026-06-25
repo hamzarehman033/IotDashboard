@@ -16,10 +16,36 @@ namespace IotDashboard.Api.Services
         public string SummaryPayloadJson { get; set; } = "{}";
     }
 
+    public class TelemetryHistoryItemDto
+    {
+        public long Id { get; set; }
+        public string TenantId { get; set; } = string.Empty;
+        public string SiteId { get; set; } = string.Empty;
+        public string DeviceId { get; set; } = string.Empty;
+        public string Topic { get; set; } = string.Empty;
+        public DateTime ReceivedAtUtc { get; set; }
+        public bool? IsCrcValid { get; set; }
+        public string? DecodeError { get; set; }
+        public string DecodedPayloadJson { get; set; } = "{}";
+    }
+
     public interface ITelemetryPersistenceService
     {
         Task PersistAsync(string topic, MqttPayloadDecodeResult decodedPayload, DateTime receivedAtUtc, CancellationToken cancellationToken = default);
         Task<List<LatestDeviceTelemetryStatusDto>> GetLatestBySiteAsync(string siteId, CancellationToken cancellationToken = default);
+        Task<LatestDeviceTelemetryStatusDto?> GetLatestByDeviceAsync(string deviceId, CancellationToken cancellationToken = default);
+        Task<List<TelemetryHistoryItemDto>> GetHistoryByDeviceAsync(
+            string deviceId,
+            DateTime? fromUtc,
+            DateTime? toUtc,
+            int limit,
+            CancellationToken cancellationToken = default);
+        Task<List<TelemetryHistoryItemDto>> GetHistoryBySiteAsync(
+            string siteId,
+            DateTime? fromUtc,
+            DateTime? toUtc,
+            int limit,
+            CancellationToken cancellationToken = default);
     }
 
     public class TelemetryPersistenceService : ITelemetryPersistenceService
@@ -126,6 +152,106 @@ namespace IotDashboard.Api.Services
                 })
                 .ToListAsync(cancellationToken);
         }
+
+        public async Task<LatestDeviceTelemetryStatusDto?> GetLatestByDeviceAsync(string deviceId, CancellationToken cancellationToken = default)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDBContext>();
+
+            return await dbContext.DeviceTelemetryLatest
+                .AsNoTracking()
+                .Where(x => x.DeviceId == deviceId)
+                .Select(x => new LatestDeviceTelemetryStatusDto
+                {
+                    TenantId = x.TenantId,
+                    SiteId = x.SiteId,
+                    DeviceId = x.DeviceId,
+                    ReceivedAtUtc = x.ReceivedAtUtc,
+                    IsCrcValid = x.IsCrcValid,
+                    DecodeError = x.DecodeError,
+                    SummaryPayloadJson = x.SummaryPayloadJson
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        public async Task<List<TelemetryHistoryItemDto>> GetHistoryByDeviceAsync(
+            string deviceId,
+            DateTime? fromUtc,
+            DateTime? toUtc,
+            int limit,
+            CancellationToken cancellationToken = default)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDBContext>();
+
+            var safeLimit = Math.Clamp(limit <= 0 ? 100 : limit, 1, 1000);
+
+            var query = dbContext.TelemetryMessages
+                .AsNoTracking()
+                .Where(x => x.DeviceId == deviceId);
+
+            if (fromUtc.HasValue)
+            {
+                query = query.Where(x => x.ReceivedAtUtc >= fromUtc.Value);
+            }
+
+            if (toUtc.HasValue)
+            {
+                query = query.Where(x => x.ReceivedAtUtc <= toUtc.Value);
+            }
+
+            return await query
+                .OrderByDescending(x => x.ReceivedAtUtc)
+                .Take(safeLimit)
+                .Select(MapHistoryDto)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<List<TelemetryHistoryItemDto>> GetHistoryBySiteAsync(
+            string siteId,
+            DateTime? fromUtc,
+            DateTime? toUtc,
+            int limit,
+            CancellationToken cancellationToken = default)
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDBContext>();
+
+            var safeLimit = Math.Clamp(limit <= 0 ? 100 : limit, 1, 1000);
+
+            var query = dbContext.TelemetryMessages
+                .AsNoTracking()
+                .Where(x => x.SiteId == siteId);
+
+            if (fromUtc.HasValue)
+            {
+                query = query.Where(x => x.ReceivedAtUtc >= fromUtc.Value);
+            }
+
+            if (toUtc.HasValue)
+            {
+                query = query.Where(x => x.ReceivedAtUtc <= toUtc.Value);
+            }
+
+            return await query
+                .OrderByDescending(x => x.ReceivedAtUtc)
+                .Take(safeLimit)
+                .Select(MapHistoryDto)
+                .ToListAsync(cancellationToken);
+        }
+
+        private static System.Linq.Expressions.Expression<Func<TelemetryMessage, TelemetryHistoryItemDto>> MapHistoryDto => x => new TelemetryHistoryItemDto
+        {
+            Id = x.Id,
+            TenantId = x.TenantId,
+            SiteId = x.SiteId,
+            DeviceId = x.DeviceId,
+            Topic = x.Topic,
+            ReceivedAtUtc = x.ReceivedAtUtc,
+            IsCrcValid = x.IsCrcValid,
+            DecodeError = x.DecodeError,
+            DecodedPayloadJson = x.DecodedPayloadJson
+        };
 
         private static object BuildSummary(MqttPayloadDecodeResult decodedPayload)
         {
