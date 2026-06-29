@@ -67,7 +67,6 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = "SysAdmin")]
         [HttpGet("users")]
         public async Task<IActionResult> GetAllUsers()
         {
@@ -75,7 +74,6 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = "SysAdmin")]
         [HttpGet("users/{userId}")]
         public async Task<IActionResult> GetUserById(long userId)
         {
@@ -83,7 +81,6 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = "SysAdmin")]
         [HttpPost("users/{userId}")]
         public async Task<IActionResult> UpdateUser(long userId, UpdateUserVM model)
         {
@@ -91,7 +88,6 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = "SysAdmin")]
         [HttpDelete("users/{userId}")]
         public async Task<IActionResult> DeleteUser(long userId)
         {
