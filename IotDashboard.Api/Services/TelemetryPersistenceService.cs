@@ -92,6 +92,13 @@ namespace IotDashboard.Api.Services
                 DecodeError = decodedPayload.Error
             };
 
+            if (decodedPayload.TelemetryPacket is not null)
+            {
+                decodedPayload.TelemetryPacket.ReceivedAtUtc = receivedAtUtc;
+                decodedPayload.TelemetryPacket.Error = decodedPayload.Error;
+                await dbContext.TelecomTelemetryPackets.AddAsync(decodedPayload.TelemetryPacket, cancellationToken);
+            }
+
             await dbContext.TelemetryMessages.AddAsync(historyRecord, cancellationToken);
 
             var latestRecord = await dbContext.DeviceTelemetryLatest
