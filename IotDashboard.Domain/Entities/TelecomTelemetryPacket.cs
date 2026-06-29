@@ -122,6 +122,11 @@ namespace IotDashboard.Domain.Entities
         public bool IsCrcValid { get; set; }
         public DateTime ReceivedAtUtc { get; set; }
         public string? Error { get; set; }
+
+        //Filteration
+        public long RegionId { get; set; }
+        public long SubRegionId { get; set; }
+        public long ZoneId { get; set; }
     }
 
     [Flags]

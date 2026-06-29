@@ -53,6 +53,7 @@ namespace IotDashboard.Api.Services
                     var decodedPayload = _mqttPayloadDecoder.Decode(eventArgs.Topic, eventArgs.Payload);
 
                     decodedPayload.TelemetryPacket.DeviceNumber = eventArgs.DeviceId;
+
                     await _telemetryPersistenceService.PersistAsync(
                         eventArgs.Topic,
                         decodedPayload,

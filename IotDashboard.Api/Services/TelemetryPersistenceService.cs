@@ -94,6 +94,13 @@ namespace IotDashboard.Api.Services
 
             if (decodedPayload.TelemetryPacket is not null)
             {
+                var regionDetails = dbContext.Devices.Where(x=> x.Id == decodedPayload.TelemetryPacket.DeviceNumber)
+                    .Select(x => new { x.Site.RegionId, x.Site.SubRegionId, x.Site.ZoneId }).FirstOrDefault();
+
+                decodedPayload.TelemetryPacket.RegionId = regionDetails.RegionId;
+                decodedPayload.TelemetryPacket.SubRegionId = regionDetails.SubRegionId;
+                decodedPayload.TelemetryPacket.ZoneId = regionDetails.ZoneId;
+
                 decodedPayload.TelemetryPacket.ReceivedAtUtc = receivedAtUtc;
                 decodedPayload.TelemetryPacket.Error = decodedPayload.Error;
                 await dbContext.TelecomTelemetryPackets.AddAsync(decodedPayload.TelemetryPacket, cancellationToken);
