@@ -252,7 +252,9 @@ namespace IotDashboard.Infrastructure.Persistence
         public DbSet<Site> Sites { get; set; }
         public DbSet<Device> Devices { get; set; }
         public DbSet<Lookup> Lookups { get; set; }
+
         public DbSet<TelemetryMessage> TelemetryMessages { get; set; }
+        public DbSet<TelecomTelemetryPacket> TelecomTelemetryPackets { get; set; }
         public DbSet<DeviceTelemetryLatest> DeviceTelemetryLatest { get; set; }
 
         public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
