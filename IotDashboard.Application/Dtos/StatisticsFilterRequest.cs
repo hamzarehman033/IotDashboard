@@ -12,9 +12,8 @@ namespace IotDashboard.Application.Dtos
         public long? SubRegionId { get; set; }
         public long? ZoneId { get; set; }
 
-        public string? Status { get; set; }
-        public string? DeviceId { get; set; }
-        public string? Type { get; set; }
+        public int? Status { get; set; }
+        public long? DeviceId { get; set; }
 
         public TimeRange TimeRange { get; set; }
     }
@@ -49,5 +48,53 @@ namespace IotDashboard.Application.Dtos
         public double OnlineOnce { get; set; }
         public double ActiveAlerts { get; set; }
         public double MessagesPerMinute { get; set; }
+    }
+
+    public class EnvironmentStatsResponse
+    {
+        public decimal AverageTemperature { get; set; }
+        public decimal AverageHumidity { get; set; }
+        public int AnomaliesCount { get; set; }
+    }
+
+    public class EnvironmentStatsRequest
+    {
+        public long? DeviceId { get; set; } // null => all devices
+        public EnvironmentTimeRange TimeRange { get; set; }
+    }
+
+    public enum EnvironmentTimeRange
+    {
+        OneHour,
+        TwentyFourHours,
+        SevenDays,
+        ThirtyDays
+    }
+
+    public class HourlyEnvironmentRequest
+    {
+        public string? DeviceId { get; set; }
+    }
+
+    public class HourlyEnvironmentDto
+    {
+        public DateTime Hour { get; set; }
+        public decimal? AvgTemperature { get; set; }
+        public decimal? AvgHumidity { get; set; }
+    }
+
+    public class TopSensorActivityDto
+    {
+        public string DeviceId { get; set; } = string.Empty;
+        public int Reads { get; set; }
+        public decimal AvgTemperature { get; set; }
+    }
+
+    public class AnomalyEventDto
+    {
+        public string Title { get; set; } = string.Empty;
+        public string DeviceId { get; set; } = string.Empty;
+        public string TimeAgo { get; set; } = string.Empty;
+        public DateTime EventTime { get; set; }
     }
 }
