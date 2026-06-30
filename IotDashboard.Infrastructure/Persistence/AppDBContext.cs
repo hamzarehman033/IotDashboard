@@ -189,6 +189,7 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
             });
 
+            var seedDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc);
             modelBuilder.Entity<Lookup>(entity =>
             {
                 entity.ToTable("Lookups").HasKey(x => x.Id);
@@ -197,22 +198,24 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.Property(x => x.Value).HasMaxLength(100).IsRequired();
                 entity.HasIndex(x => x.Category);
 
+
+
                 // Seed default lookups
                 entity.HasData(
                     // Location Type Lookups
-                    new Lookup { Id = 1, Category = "LocationType", Name = "Region", Value = "1", Order = 1, CreatedBy = 1, CreatedOn = DateTime.UtcNow, IsActive = true },
-                    new Lookup { Id = 2, Category = "LocationType", Name = "SubRegion", Value = "2", Order = 2, CreatedBy = 1, CreatedOn = DateTime.UtcNow, IsActive = true },
-                    new Lookup { Id = 3, Category = "LocationType", Name = "Zone", Value = "3", Order = 3, CreatedBy = 1, CreatedOn = DateTime.UtcNow, IsActive = true },
-                    
+                    new Lookup { Id = 1, Category = "LocationType", Name = "Region", Value = "1", Order = 1, CreatedBy = 1, CreatedOn = seedDate, IsActive = true },
+                    new Lookup { Id = 2, Category = "LocationType", Name = "SubRegion", Value = "2", Order = 2, CreatedBy = 1, CreatedOn = seedDate, IsActive = true },
+                    new Lookup { Id = 3, Category = "LocationType", Name = "Zone", Value = "3", Order = 3, CreatedBy = 1, CreatedOn = seedDate, IsActive = true },
+
                     // Status Lookups
-                    new Lookup { Id = 4, Category = "Status", Name = "Active", Value = "Active", Order = 1, CreatedBy = 1, CreatedOn = DateTime.UtcNow, IsActive = true },
-                    new Lookup { Id = 5, Category = "Status", Name = "Inactive", Value = "Inactive", Order = 2, CreatedBy = 1, CreatedOn = DateTime.UtcNow, IsActive = true },
-                    new Lookup { Id = 6, Category = "Status", Name = "Suspended", Value = "Suspended", Order = 3, CreatedBy = 1, CreatedOn = DateTime.UtcNow, IsActive = true },
-                    
+                    new Lookup { Id = 4, Category = "Status", Name = "Active", Value = "Active", Order = 1, CreatedBy = 1, CreatedOn = seedDate, IsActive = true },
+                    new Lookup { Id = 5, Category = "Status", Name = "Inactive", Value = "Inactive", Order = 2, CreatedBy = 1, CreatedOn = seedDate, IsActive = true },
+                    new Lookup { Id = 6, Category = "Status", Name = "Suspended", Value = "Suspended", Order = 3, CreatedBy = 1, CreatedOn = seedDate, IsActive = true },
+
                     // Subscription Status Lookups
-                    new Lookup { Id = 7, Category = "SubscriptionStatus", Name = "Active", Value = "Active", Order = 1, CreatedBy = 1, CreatedOn = DateTime.UtcNow, IsActive = true },
-                    new Lookup { Id = 8, Category = "SubscriptionStatus", Name = "Inactive", Value = "Inactive", Order = 2, CreatedBy = 1, CreatedOn = DateTime.UtcNow, IsActive = true },
-                    new Lookup { Id = 9, Category = "SubscriptionStatus", Name = "Expired", Value = "Expired", Order = 3, CreatedBy = 1, CreatedOn = DateTime.UtcNow, IsActive = true }
+                    new Lookup { Id = 7, Category = "SubscriptionStatus", Name = "Active", Value = "Active", Order = 1, CreatedBy = 1, CreatedOn = seedDate, IsActive = true },
+                    new Lookup { Id = 8, Category = "SubscriptionStatus", Name = "Inactive", Value = "Inactive", Order = 2, CreatedBy = 1, CreatedOn = seedDate, IsActive = true },
+                    new Lookup { Id = 9, Category = "SubscriptionStatus", Name = "Expired", Value = "Expired", Order = 3, CreatedBy = 1, CreatedOn = seedDate, IsActive = true }
                 );
             });
 
