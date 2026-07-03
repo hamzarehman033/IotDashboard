@@ -71,6 +71,42 @@ namespace IotDashboard.Application.Handlers.Implimentation
             return response;
         }
 
+        public override async Task<Response<DeviceVM>> GetByIdAsync(long Id)
+        {
+            var response = await base.GetByIdAsync(Id);
+
+            if (response.Data == null)
+            {
+                return response;
+            }
+
+            var locationIds = new[]
+            {
+                response.Data.RegionId,
+                response.Data.SubRegionId,
+                response.Data.ZoneId
+            }
+            .Distinct()
+            .ToList();
+
+            var locationById = await _locationRepository.GetAllAsync()
+                .Where(x => locationIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.Name })
+                .ToDictionaryAsync(x => x.Id, x => x.Name);
+
+            response.Data.RegionName = locationById.TryGetValue(response.Data.RegionId, out var regionName)
+                ? regionName
+                : string.Empty;
+            response.Data.SubRegionName = locationById.TryGetValue(response.Data.SubRegionId, out var subRegionName)
+                ? subRegionName
+                : string.Empty;
+            response.Data.ZoneName = locationById.TryGetValue(response.Data.ZoneId, out var zoneName)
+                ? zoneName
+                : string.Empty;
+
+            return response;
+        }
+
         public override async Task<Response<DeviceVM>> CreateAsync(DeviceVM model)
         {
             var customerId = _currentUserService.GetCustomerId();
