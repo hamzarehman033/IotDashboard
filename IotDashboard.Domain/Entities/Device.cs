@@ -17,7 +17,7 @@ namespace IotDashboard.Domain.Entities
         public string MqttClientId { get; set; } = string.Empty;
         public string MqttUsername { get; set; } = string.Empty;
         public string MqttPassword { get; set; } = string.Empty;
-        public bool UseTls { get; set; }
+        public bool UseTls { get; set; } = false;
         public int KeepAliveSeconds { get; set; } = 60;
         public string RmsSubscribeTopic { get; set; } = string.Empty;
         public string AiSubscribeTopic { get; set; } = string.Empty;
