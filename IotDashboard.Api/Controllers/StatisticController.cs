@@ -27,10 +27,19 @@ namespace IotDashboard.Api.Controllers
             return Ok(result);
         }
 
+        [AllowAnonymous]
         [HttpGet("weekly-alerts")]
         public async Task<IActionResult> GetWeeklyAlerts()
         {
             var result = await _statisticService.GetWeeklyAlerts();
+            return Ok(result);
+        }
+
+        [AllowAnonymous]
+        [HttpPost("recent-sites")]
+        public async Task<IActionResult> GetRecentSites([FromBody] DashboardFilterRequest request)
+        {
+            var result = await _statisticService.GetRecentSites(request);
             return Ok(result);
         }
 

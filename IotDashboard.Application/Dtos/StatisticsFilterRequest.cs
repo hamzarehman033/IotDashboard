@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace IotDashboard.Application.Dtos
 {
-    public class DashboardSummaryRequest
+    public class DashboardFilterRequest
     {
         public long? RegionId { get; set; }
         public long? SubRegionId { get; set; }
@@ -17,6 +17,11 @@ namespace IotDashboard.Application.Dtos
 
         public TimeRange TimeRange { get; set; }
     }
+
+    public class DashboardSummaryRequest : DashboardFilterRequest
+    {
+    }
+
 
     public enum TimeRange
     {
@@ -103,5 +108,29 @@ namespace IotDashboard.Application.Dtos
     {
         public DateTime Date { get; set; }
         public int Alerts { get; set; }
+    }
+
+    public class RecentSiteDto
+    {
+        public long DeviceId { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Address { get; set; } = string.Empty;
+
+        public long RegionId { get; set; }
+        public string RegionName { get; set; } = string.Empty;
+
+        public long SubRegionId { get; set; }
+        public string SubRegionName { get; set; } = string.Empty;
+
+        public long ZoneId { get; set; }
+        public string ZoneName { get; set; } = string.Empty;
+
+        public int BatteryQty { get; set; }
+        public DateTime InstallationDate { get; set; }
+
+        public string Coordinates { get; set; } = string.Empty;
     }
 }
