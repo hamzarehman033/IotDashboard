@@ -139,6 +139,7 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.Property(x => x.MqttPassword).HasMaxLength(255).IsRequired();
                 entity.Property(x => x.RmsSubscribeTopic).HasMaxLength(255).IsRequired();
                 entity.Property(x => x.AiSubscribeTopic).HasMaxLength(255).IsRequired();
+                entity.Property(x => x.PublishTopic).HasMaxLength(255).IsRequired();
                 entity.Property(x => x.RectifierBrand).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.RectifierCapacity).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.BatteryBrand).HasMaxLength(100).IsRequired();

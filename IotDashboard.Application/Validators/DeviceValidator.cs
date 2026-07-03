@@ -67,6 +67,10 @@ namespace IotDashboard.Application.Validators
                 .NotEmpty().WithMessage("AI subscribe topic is required")
                 .MaximumLength(255).WithMessage("AI subscribe topic must be at most 255 characters");
 
+            RuleFor(x => x.PublishTopic)
+                .NotEmpty().WithMessage("Publish topic is required")
+                .MaximumLength(255).WithMessage("Publish topic must be at most 255 characters");
+
             RuleFor(x => x.RectifierBrand)
                 .MaximumLength(100).WithMessage("Rectifier brand must be at most 100 characters");
 

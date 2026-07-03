@@ -21,6 +21,7 @@ namespace IotDashboard.Application.Dtos
         public int KeepAliveSeconds { get; set; } = 60;
         public string RmsSubscribeTopic { get; set; } = string.Empty;
         public string AiSubscribeTopic { get; set; } = string.Empty;
+        public string PublishTopic { get; set; } = string.Empty;
         public string RectifierBrand { get; set; } = string.Empty;
         public int RectifierQty { get; set; }
         public string RectifierCapacity { get; set; } = string.Empty;
