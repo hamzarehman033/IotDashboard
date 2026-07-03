@@ -7,7 +7,8 @@ namespace IotDashboard.Api.Services
 {
     public interface IStatisticService
     {
-        Task<DashboardStatsResponse> GetDashboardStats(StatisticsFilterRequest request);
+        Task<DashboardSummaryResponse> GetSummary(
+                DashboardSummaryRequest request);
         Task<EnvironmentStatsResponse> TelemetryEnvironmentCounts(
     EnvironmentStatsRequest request);
         Task<List<HourlyEnvironmentDto>> TelemetryGetHourlyTempHumidityStats(
@@ -24,114 +25,84 @@ namespace IotDashboard.Api.Services
             _context = dbContext;
         }
 
-        public async Task<DashboardStatsResponse> GetDashboardStats(
-              StatisticsFilterRequest request)
+        public async Task<DashboardSummaryResponse> GetSummary(
+                DashboardSummaryRequest request)
         {
-            var (currentStart, currentEnd) = GetDateRange(request.TimeRange);
-            var duration = currentEnd - currentStart;
+            var (start, end) = GetRange(request.TimeRange);
 
-            var previousStart = currentStart - duration;
-            var previousEnd = currentStart;
-
-            var currentQuery = ApplyFilters(
-                _context.TelecomTelemetryPackets.AsQueryable(),
-                request,
-                currentStart,
-                currentEnd);
-
-            var previousQuery = ApplyFilters(
-                _context.TelecomTelemetryPackets.AsQueryable(),
-                request,
-                previousStart,
-                previousEnd);
-
-            var currentStats = await CalculateStats(currentQuery, duration);
-            var previousStats = await CalculateStats(previousQuery, duration);
-
-            return new DashboardStatsResponse
-            {
-                TotalSites = Compare(currentStats.TotalSites, previousStats.TotalSites),
-                OnlineOnce = Compare(currentStats.OnlineOnce, previousStats.OnlineOnce),
-                ActiveAlerts = Compare(currentStats.ActiveAlerts, previousStats.ActiveAlerts),
-                MessagesPerMinute = Compare(currentStats.MessagesPerMinute, previousStats.MessagesPerMinute)
-            };
-        }
-
-        private IQueryable<TelecomTelemetryPacket> ApplyFilters(
-            IQueryable<TelecomTelemetryPacket> query,
-            StatisticsFilterRequest request,
-            DateTime start,
-            DateTime end)
-        {
-            query = query.Where(x =>
-                x.ReceivedAtUtc >= start &&
-                x.ReceivedAtUtc <= end);
+            //--------------------------------
+            // DEVICE QUERY
+            //--------------------------------
+            var deviceQuery = _context.Devices.AsQueryable();
 
             if (request.RegionId.HasValue)
-                query = query.Where(x => x.RegionId == request.RegionId.Value);
+                deviceQuery = deviceQuery.Where(x => x.RegionId == request.RegionId);
 
             if (request.SubRegionId.HasValue)
-                query = query.Where(x => x.SubRegionId == request.SubRegionId.Value);
+                deviceQuery = deviceQuery.Where(x => x.SubRegionId == request.SubRegionId);
 
             if (request.ZoneId.HasValue)
-                query = query.Where(x => x.ZoneId == request.ZoneId.Value);
+                deviceQuery = deviceQuery.Where(x => x.ZoneId == request.ZoneId);
 
-            // Type filter (adjust when your actual type column exists)
-            /*
-            if (!string.IsNullOrWhiteSpace(request.Type))
-                query = query.Where(x => x.Type == request.Type);
-            */
+            if (request.DeviceId.HasValue)
+                deviceQuery = deviceQuery.Where(x => x.Id == request.DeviceId);
 
-            return query;
-        }
+            var activeDevices = await deviceQuery.CountAsync();
 
-        private async Task<StatsResult> CalculateStats(
-            IQueryable<TelecomTelemetryPacket> query,
-            TimeSpan duration)
-        {
-            var totalSites = await query
+            var onlineDevices = await deviceQuery
+                .CountAsync(x => x.Status == "Online");
+
+            var offlineDevices = await deviceQuery
+                .CountAsync(x => x.Status == "Offline");
+
+            //--------------------------------
+            // PACKET QUERY
+            //--------------------------------
+            var packetQuery = _context.TelecomTelemetryPackets
+                .Where(x =>
+                    x.ReceivedAtUtc >= start &&
+                    x.ReceivedAtUtc <= end);
+
+            if (request.RegionId.HasValue)
+                packetQuery = packetQuery.Where(x => x.RegionId == request.RegionId);
+
+            if (request.SubRegionId.HasValue)
+                packetQuery = packetQuery.Where(x => x.SubRegionId == request.SubRegionId);
+
+            if (request.ZoneId.HasValue)
+                packetQuery = packetQuery.Where(x => x.ZoneId == request.ZoneId);
+
+            if (request.DeviceId.HasValue)
+            {
+                var deviceIdString = request.DeviceId.Value.ToString();
+                packetQuery = packetQuery.Where(x => x.DeviceId == deviceIdString);
+            }
+
+            var activeAlerts = await packetQuery
+                .Where(x => (x.ActiveAlarmCount ?? 0) > 0)
                 .Select(x => x.DeviceId)
                 .Distinct()
                 .CountAsync();
 
-            var onlineOnce = await query
-                .Select(x => x.DeviceId)
-                .Distinct()
-                .CountAsync();
+            var totalPackets = await packetQuery.CountAsync();
 
-            var activeAlerts = await query
-                .Where(x => x.ActiveAlarmCount > 0)
-                .CountAsync();
+            var totalMinutes = (decimal)(end - start).TotalMinutes;
 
-            var totalMessages = await query.CountAsync();
-
-            var msgsPerMinute = duration.TotalMinutes == 0
+            var packetsPerMinute = totalMinutes == 0
                 ? 0
-                : totalMessages / duration.TotalMinutes;
+                : Math.Round(totalPackets / totalMinutes, 2);
 
-            return new StatsResult
+            return new DashboardSummaryResponse
             {
-                TotalSites = totalSites,
-                OnlineOnce = onlineOnce,
+                ActiveDevices = activeDevices,
+                OnlineOnce = onlineDevices,
+                OfflineOnce = offlineDevices,
                 ActiveAlerts = activeAlerts,
-                MessagesPerMinute = msgsPerMinute
+                PacketsPerMinute = packetsPerMinute
             };
         }
 
-        private MetricDto Compare(double current, double previous)
-        {
-            var diff = current - previous;
-
-            return new MetricDto
-            {
-                Current = current,
-                Previous = previous,
-                Difference = diff,
-                Percentage = previous == 0 ? 100 : Math.Round((diff / previous) * 100, 2)
-            };
-        }
-
-        private (DateTime start, DateTime end) GetDateRange(TimeRange range)
+        private (DateTime Start, DateTime End) GetRange(TimeRange range)
         {
             var end = DateTime.UtcNow;
 
@@ -144,6 +115,8 @@ namespace IotDashboard.Api.Services
                 _ => throw new ArgumentOutOfRangeException()
             };
         }
+
+        #region Telemetry
 
         #region TelemetryEnvironmentCounts
         public async Task<EnvironmentStatsResponse> TelemetryEnvironmentCounts(
@@ -421,5 +394,6 @@ namespace IotDashboard.Api.Services
 
         #endregion
 
+        #endregion Telemetry
     }
 }

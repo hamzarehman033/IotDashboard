@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace IotDashboard.Application.Dtos
 {
-    public class StatisticsFilterRequest
+    public class DashboardSummaryRequest
     {
         public long? RegionId { get; set; }
         public long? SubRegionId { get; set; }
@@ -26,12 +26,13 @@ namespace IotDashboard.Application.Dtos
         ThreeMonths
     }
 
-    public class DashboardStatsResponse
+    public class DashboardSummaryResponse
     {
-        public MetricDto TotalSites { get; set; } = new();
-        public MetricDto OnlineOnce { get; set; } = new();
-        public MetricDto ActiveAlerts { get; set; } = new();
-        public MetricDto MessagesPerMinute { get; set; } = new();
+        public int ActiveDevices { get; set; }
+        public int OnlineOnce { get; set; }
+        public int OfflineOnce { get; set; }
+        public int ActiveAlerts { get; set; }
+        public decimal PacketsPerMinute { get; set; }
     }
 
     public class MetricDto

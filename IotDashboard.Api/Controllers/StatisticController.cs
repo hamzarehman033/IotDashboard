@@ -20,10 +20,10 @@ namespace IotDashboard.Api.Controllers
 
         [AllowAnonymous]
         [HttpPost("dashboard-summary")]
-        public async Task<IActionResult> GetStats(
-            StatisticsFilterRequest request)
+        public async Task<IActionResult> GetSummary(
+            DashboardSummaryRequest request)
         {
-            var result = await _statisticService.GetDashboardStats(request);
+            var result = await _statisticService.GetSummary(request);
             return Ok(result);
         }
 
