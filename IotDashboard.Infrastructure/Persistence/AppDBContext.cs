@@ -33,8 +33,6 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.Property(x => x.Modules)
                     .HasColumnType("bigint[]")
                     .HasDefaultValueSql("'{}'::bigint[]");
-                entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
-                
             });
 
             modelBuilder.Entity<Role>(entity =>
