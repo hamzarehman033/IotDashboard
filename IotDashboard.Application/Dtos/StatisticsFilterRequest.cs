@@ -98,4 +98,10 @@ namespace IotDashboard.Application.Dtos
         public string TimeAgo { get; set; } = string.Empty;
         public DateTime EventTime { get; set; }
     }
+
+    public class WeeklyAlertDto
+    {
+        public DateTime Date { get; set; }
+        public int Alerts { get; set; }
+    }
 }

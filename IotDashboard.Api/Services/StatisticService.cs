@@ -9,6 +9,7 @@ namespace IotDashboard.Api.Services
     {
         Task<DashboardSummaryResponse> GetSummary(
                 DashboardSummaryRequest request);
+        Task<List<WeeklyAlertDto>> GetWeeklyAlerts();
         Task<EnvironmentStatsResponse> TelemetryEnvironmentCounts(
     EnvironmentStatsRequest request);
         Task<List<HourlyEnvironmentDto>> TelemetryGetHourlyTempHumidityStats(
@@ -20,6 +21,8 @@ namespace IotDashboard.Api.Services
     {
         private readonly AppDBContext _context;
 
+        #region dashboard
+        #region dashboard-summary
         public StatisticService(AppDBContext dbContext)
         {
             _context = dbContext;
@@ -115,6 +118,55 @@ namespace IotDashboard.Api.Services
                 _ => throw new ArgumentOutOfRangeException()
             };
         }
+        #endregion
+
+        #region GetWeeklyAlertsCount
+        public async Task<List<WeeklyAlertDto>> GetWeeklyAlerts()
+        {
+            var today = DateTime.UtcNow.Date;
+            var startDate = today.AddDays(-6);
+
+            var groupedData = await _context.TelecomTelemetryPackets
+                .Where(x =>
+                    x.ReceivedAtUtc >= startDate &&
+                    (x.ActiveAlarmCount ?? 0) > 0)
+                .GroupBy(x => x.ReceivedAtUtc.Date)
+                .Select(g => new WeeklyAlertDto
+                {
+                    Date = g.Key,
+                    Alerts = g.Sum(x => (int)(x.ActiveAlarmCount ?? 0))
+                })
+                .OrderBy(x => x.Date)
+                .ToListAsync();
+
+            return FillMissingDays(groupedData, startDate);
+        }
+
+        private List<WeeklyAlertDto> FillMissingDays(
+            List<WeeklyAlertDto> existingData,
+            DateTime startDate)
+        {
+            var result = new List<WeeklyAlertDto>();
+
+            for (int i = 0; i < 7; i++)
+            {
+                var currentDate = startDate.AddDays(i);
+
+                var existing = existingData
+                    .FirstOrDefault(x => x.Date.Date == currentDate.Date);
+
+                result.Add(existing ?? new WeeklyAlertDto
+                {
+                    Date = currentDate,
+                    Alerts = 0
+                });
+            }
+
+            return result;
+        }
+        #endregion
+
+        #endregion
 
         #region Telemetry
 

@@ -27,6 +27,13 @@ namespace IotDashboard.Api.Controllers
             return Ok(result);
         }
 
+        [HttpGet("weekly-alerts")]
+        public async Task<IActionResult> GetWeeklyAlerts()
+        {
+            var result = await _statisticService.GetWeeklyAlerts();
+            return Ok(result);
+        }
+
         [AllowAnonymous]
         [HttpPost("TelemetryEnvironmentCounts")]
         public async Task<IActionResult> TelemetryEnvironmentCounts(
