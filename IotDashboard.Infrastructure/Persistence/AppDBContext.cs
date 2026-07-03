@@ -124,39 +124,14 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
             });
 
-            modelBuilder.Entity<Site>(entity =>
-            {
-                entity.ToTable("Sites").HasKey(x => x.Id);
-                entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
-                entity.Property(x => x.Code).HasMaxLength(50).IsRequired();
-                entity.Property(x => x.Status).HasMaxLength(50).IsRequired();
-                entity.Property(x => x.Coordinates).HasMaxLength(100).IsRequired();
-                entity.HasIndex(x => new { x.CustomerId, x.Code }).IsUnique();
-                entity.HasOne(x => x.Customer)
-                    .WithMany()
-                    .HasForeignKey(x => x.CustomerId)
-                    .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne(x => x.Region)
-                    .WithMany()
-                    .HasForeignKey(x => x.RegionId)
-                    .OnDelete(DeleteBehavior.Restrict);
-                entity.HasOne(x => x.SubRegion)
-                    .WithMany()
-                    .HasForeignKey(x => x.SubRegionId)
-                    .OnDelete(DeleteBehavior.Restrict);
-                entity.HasOne(x => x.Zone)
-                    .WithMany()
-                    .HasForeignKey(x => x.ZoneId)
-                    .OnDelete(DeleteBehavior.Restrict);
-                entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
-            });
-
             modelBuilder.Entity<Device>(entity =>
             {
                 entity.ToTable("Devices").HasKey(x => x.Id);
                 entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.Code).HasMaxLength(50).IsRequired();
                 entity.Property(x => x.Status).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.Address).IsRequired();
+                entity.Property(x => x.Coordinates).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.InstallationDate).IsRequired();
                 entity.Property(x => x.MqttHost).HasMaxLength(255).IsRequired();
                 entity.Property(x => x.MqttClientId).HasMaxLength(100).IsRequired();
@@ -175,15 +150,22 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.Property(x => x.RmsSerialNumber).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.SimCardNumber).HasMaxLength(50).IsRequired();
                 entity.HasIndex(x => new { x.CustomerId, x.Code }).IsUnique();
-                entity.HasIndex(x => x.SiteId).IsUnique();
                 entity.HasOne(x => x.Customer)
                     .WithMany()
                     .HasForeignKey(x => x.CustomerId)
                     .OnDelete(DeleteBehavior.Cascade);
-                entity.HasOne(x => x.Site)
+                entity.HasOne(x => x.Region)
                     .WithMany()
-                    .HasForeignKey(x => x.SiteId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                    .HasForeignKey(x => x.RegionId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.SubRegion)
+                    .WithMany()
+                    .HasForeignKey(x => x.SubRegionId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.Zone)
+                    .WithMany()
+                    .HasForeignKey(x => x.ZoneId)
+                    .OnDelete(DeleteBehavior.Restrict);
                 entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
             });
 
@@ -221,13 +203,12 @@ namespace IotDashboard.Infrastructure.Persistence
             {
                 entity.ToTable("TelemetryMessages").HasKey(x => x.Id);
                 entity.Property(x => x.TenantId).HasMaxLength(100).IsRequired();
-                entity.Property(x => x.SiteId).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.DeviceId).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.Topic).HasMaxLength(255).IsRequired();
                 entity.Property(x => x.ReceivedAtUtc).IsRequired();
                 entity.Property(x => x.DecodedPayloadJson).HasColumnType("jsonb").IsRequired();
                 entity.Property(x => x.DecodeError).HasMaxLength(2000);
-                entity.HasIndex(x => new { x.TenantId, x.SiteId, x.DeviceId, x.ReceivedAtUtc });
+                entity.HasIndex(x => new { x.TenantId, x.DeviceId, x.ReceivedAtUtc });
                 entity.HasIndex(x => x.ReceivedAtUtc);
             });
 
@@ -235,13 +216,11 @@ namespace IotDashboard.Infrastructure.Persistence
             {
                 entity.ToTable("DeviceTelemetryLatest").HasKey(x => x.Id);
                 entity.Property(x => x.TenantId).HasMaxLength(100).IsRequired();
-                entity.Property(x => x.SiteId).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.DeviceId).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.ReceivedAtUtc).IsRequired();
                 entity.Property(x => x.SummaryPayloadJson).HasColumnType("jsonb").IsRequired();
                 entity.Property(x => x.DecodeError).HasMaxLength(2000);
                 entity.HasIndex(x => x.DeviceId).IsUnique();
-                entity.HasIndex(x => x.SiteId);
             });
         }
 
@@ -250,7 +229,6 @@ namespace IotDashboard.Infrastructure.Persistence
         public DbSet<Subscription> Subscriptions { get; set; }
         public DbSet<Location> Locations { get; set; }
         public DbSet<Tenant> Tenants { get; set; }
-        public DbSet<Site> Sites { get; set; }
         public DbSet<Device> Devices { get; set; }
         public DbSet<Lookup> Lookups { get; set; }
 
@@ -273,11 +251,6 @@ namespace IotDashboard.Infrastructure.Persistence
                 if (entity.Entity is Tenant tenant)
                 {
                     tenant.CustomerId = _currentUserService.GetCustomerId();
-                }
-
-                if (entity.Entity is Site site)
-                {
-                    site.CustomerId = _currentUserService.GetCustomerId();
                 }
 
                 if (entity.Entity is Device device)

@@ -90,12 +90,12 @@ namespace IotDashboard.Api.Services
             TimeSpan duration)
         {
             var totalSites = await query
-                .Select(x => x.SiteId)
+                .Select(x => x.DeviceId)
                 .Distinct()
                 .CountAsync();
 
             var onlineOnce = await query
-                .Select(x => x.SiteId)
+                .Select(x => x.DeviceId)
                 .Distinct()
                 .CountAsync();
 

@@ -14,31 +14,6 @@ namespace IotDashboard.Application.Handlers.Implimentation
             _dbContext = dbContext;
         }
 
-        public async Task<Response<List<LatestDeviceTelemetryStatusVM>>> GetLatestBySiteAsync(string siteId, CancellationToken cancellationToken = default)
-        {
-            var data = await _dbContext.DeviceTelemetryLatest
-                .AsNoTracking()
-                .Where(x => x.SiteId == siteId)
-                .OrderByDescending(x => x.ReceivedAtUtc)
-                .Select(x => new LatestDeviceTelemetryStatusVM
-                {
-                    TenantId = x.TenantId,
-                    SiteId = x.SiteId,
-                    DeviceId = x.DeviceId,
-                    ReceivedAtUtc = x.ReceivedAtUtc,
-                    IsCrcValid = x.IsCrcValid,
-                    DecodeError = x.DecodeError,
-                    SummaryPayloadJson = x.SummaryPayloadJson
-                })
-                .ToListAsync(cancellationToken);
-
-            return new Response<List<LatestDeviceTelemetryStatusVM>>
-            {
-                Status = "Success",
-                Data = data
-            };
-        }
-
         public async Task<Response<LatestDeviceTelemetryStatusVM>> GetLatestByDeviceAsync(string deviceId, CancellationToken cancellationToken = default)
         {
             var data = await _dbContext.DeviceTelemetryLatest
@@ -47,7 +22,6 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 .Select(x => new LatestDeviceTelemetryStatusVM
                 {
                     TenantId = x.TenantId,
-                    SiteId = x.SiteId,
                     DeviceId = x.DeviceId,
                     ReceivedAtUtc = x.ReceivedAtUtc,
                     IsCrcValid = x.IsCrcValid,
@@ -102,54 +76,6 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 {
                     Id = x.Id,
                     TenantId = x.TenantId,
-                    SiteId = x.SiteId,
-                    DeviceId = x.DeviceId,
-                    Topic = x.Topic,
-                    ReceivedAtUtc = x.ReceivedAtUtc,
-                    IsCrcValid = x.IsCrcValid,
-                    DecodeError = x.DecodeError,
-                    DecodedPayloadJson = x.DecodedPayloadJson
-                })
-                .ToListAsync(cancellationToken);
-
-            return new Response<List<TelemetryHistoryItemVM>>
-            {
-                Status = "Success",
-                Data = data
-            };
-        }
-
-        public async Task<Response<List<TelemetryHistoryItemVM>>> GetHistoryBySiteAsync(
-            string siteId,
-            DateTime? fromUtc,
-            DateTime? toUtc,
-            int limit,
-            CancellationToken cancellationToken = default)
-        {
-            var safeLimit = Math.Clamp(limit <= 0 ? 100 : limit, 1, 1000);
-
-            var query = _dbContext.TelemetryMessages
-                .AsNoTracking()
-                .Where(x => x.SiteId == siteId);
-
-            if (fromUtc.HasValue)
-            {
-                query = query.Where(x => x.ReceivedAtUtc >= fromUtc.Value);
-            }
-
-            if (toUtc.HasValue)
-            {
-                query = query.Where(x => x.ReceivedAtUtc <= toUtc.Value);
-            }
-
-            var data = await query
-                .OrderByDescending(x => x.ReceivedAtUtc)
-                .Take(safeLimit)
-                .Select(x => new TelemetryHistoryItemVM
-                {
-                    Id = x.Id,
-                    TenantId = x.TenantId,
-                    SiteId = x.SiteId,
                     DeviceId = x.DeviceId,
                     Topic = x.Topic,
                     ReceivedAtUtc = x.ReceivedAtUtc,

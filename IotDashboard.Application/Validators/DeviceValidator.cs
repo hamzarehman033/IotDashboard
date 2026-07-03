@@ -7,8 +7,14 @@ namespace IotDashboard.Application.Validators
     {
         public DeviceVMValidator()
         {
-            RuleFor(x => x.SiteId)
-                .GreaterThan(0).WithMessage("Site is required");
+            RuleFor(x => x.RegionId)
+                .GreaterThan(0).WithMessage("Region is required");
+
+            RuleFor(x => x.SubRegionId)
+                .GreaterThan(0).WithMessage("SubRegion is required");
+
+            RuleFor(x => x.ZoneId)
+                .GreaterThan(0).WithMessage("Zone is required");
 
             RuleFor(x => x.Name)
                 .NotEmpty().WithMessage("Name is required")
@@ -21,6 +27,13 @@ namespace IotDashboard.Application.Validators
             RuleFor(x => x.Status)
                 .NotEmpty().WithMessage("Status is required")
                 .MaximumLength(50).WithMessage("Status must be at most 50 characters");
+
+            RuleFor(x => x.Address)
+                .NotEmpty().WithMessage("Address is required");
+
+            RuleFor(x => x.Coordinates)
+                .NotEmpty().WithMessage("Coordinates are required")
+                .MaximumLength(100).WithMessage("Coordinates must be at most 100 characters");
 
             RuleFor(x => x.InstallationDate)
                 .NotEmpty().WithMessage("Installation date is required");

@@ -8,7 +8,6 @@ namespace IotDashboard.Api.Services
     public class LatestDeviceTelemetryStatusDto
     {
         public string TenantId { get; set; } = string.Empty;
-        public string SiteId { get; set; } = string.Empty;
         public string DeviceId { get; set; } = string.Empty;
         public DateTime ReceivedAtUtc { get; set; }
         public bool? IsCrcValid { get; set; }
@@ -20,7 +19,6 @@ namespace IotDashboard.Api.Services
     {
         public long Id { get; set; }
         public string TenantId { get; set; } = string.Empty;
-        public string SiteId { get; set; } = string.Empty;
         public string DeviceId { get; set; } = string.Empty;
         public string Topic { get; set; } = string.Empty;
         public DateTime ReceivedAtUtc { get; set; }
@@ -32,16 +30,9 @@ namespace IotDashboard.Api.Services
     public interface ITelemetryPersistenceService
     {
         Task PersistAsync(string topic, MqttPayloadDecodeResult decodedPayload, DateTime receivedAtUtc, CancellationToken cancellationToken = default);
-        Task<List<LatestDeviceTelemetryStatusDto>> GetLatestBySiteAsync(string siteId, CancellationToken cancellationToken = default);
         Task<LatestDeviceTelemetryStatusDto?> GetLatestByDeviceAsync(string deviceId, CancellationToken cancellationToken = default);
         Task<List<TelemetryHistoryItemDto>> GetHistoryByDeviceAsync(
             string deviceId,
-            DateTime? fromUtc,
-            DateTime? toUtc,
-            int limit,
-            CancellationToken cancellationToken = default);
-        Task<List<TelemetryHistoryItemDto>> GetHistoryBySiteAsync(
-            string siteId,
             DateTime? fromUtc,
             DateTime? toUtc,
             int limit,
@@ -83,7 +74,6 @@ namespace IotDashboard.Api.Services
             var historyRecord = new TelemetryMessage
             {
                 TenantId = ids.TenantId,
-                SiteId = ids.SiteId,
                 DeviceId = ids.DeviceId,
                 Topic = topic,
                 ReceivedAtUtc = receivedAtUtc,
@@ -95,11 +85,14 @@ namespace IotDashboard.Api.Services
             if (decodedPayload.TelemetryPacket is not null)
             {
                 var regionDetails = dbContext.Devices.Where(x=> x.Id == decodedPayload.TelemetryPacket.DeviceNumber)
-                    .Select(x => new { x.Site.RegionId, x.Site.SubRegionId, x.Site.ZoneId }).FirstOrDefault();
+                    .Select(x => new { x.RegionId, x.SubRegionId, x.ZoneId }).FirstOrDefault();
 
-                decodedPayload.TelemetryPacket.RegionId = regionDetails.RegionId;
-                decodedPayload.TelemetryPacket.SubRegionId = regionDetails.SubRegionId;
-                decodedPayload.TelemetryPacket.ZoneId = regionDetails.ZoneId;
+                if (regionDetails is not null)
+                {
+                    decodedPayload.TelemetryPacket.RegionId = regionDetails.RegionId;
+                    decodedPayload.TelemetryPacket.SubRegionId = regionDetails.SubRegionId;
+                    decodedPayload.TelemetryPacket.ZoneId = regionDetails.ZoneId;
+                }
 
                 decodedPayload.TelemetryPacket.ReceivedAtUtc = receivedAtUtc;
                 decodedPayload.TelemetryPacket.Error = decodedPayload.Error;
@@ -116,7 +109,6 @@ namespace IotDashboard.Api.Services
                 latestRecord = new DeviceTelemetryLatest
                 {
                     TenantId = ids.TenantId,
-                    SiteId = ids.SiteId,
                     DeviceId = ids.DeviceId,
                     ReceivedAtUtc = receivedAtUtc,
                     SummaryPayloadJson = summaryPayloadJson,
@@ -129,7 +121,6 @@ namespace IotDashboard.Api.Services
             else
             {
                 latestRecord.TenantId = ids.TenantId;
-                latestRecord.SiteId = ids.SiteId;
                 latestRecord.ReceivedAtUtc = receivedAtUtc;
                 latestRecord.SummaryPayloadJson = summaryPayloadJson;
                 latestRecord.IsCrcValid = decodedPayload.TelemetryPacket?.IsCrcValid;
@@ -139,32 +130,9 @@ namespace IotDashboard.Api.Services
             await dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Telemetry persisted for TenantId {TenantId}, SiteId {SiteId}, DeviceId {DeviceId}",
+                "Telemetry persisted for TenantId {TenantId}, DeviceId {DeviceId}",
                 ids.TenantId,
-                ids.SiteId,
                 ids.DeviceId);
-        }
-
-        public async Task<List<LatestDeviceTelemetryStatusDto>> GetLatestBySiteAsync(string siteId, CancellationToken cancellationToken = default)
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AppDBContext>();
-
-            return await dbContext.DeviceTelemetryLatest
-                .AsNoTracking()
-                .Where(x => x.SiteId == siteId)
-                .OrderByDescending(x => x.ReceivedAtUtc)
-                .Select(x => new LatestDeviceTelemetryStatusDto
-                {
-                    TenantId = x.TenantId,
-                    SiteId = x.SiteId,
-                    DeviceId = x.DeviceId,
-                    ReceivedAtUtc = x.ReceivedAtUtc,
-                    IsCrcValid = x.IsCrcValid,
-                    DecodeError = x.DecodeError,
-                    SummaryPayloadJson = x.SummaryPayloadJson
-                })
-                .ToListAsync(cancellationToken);
         }
 
         public async Task<LatestDeviceTelemetryStatusDto?> GetLatestByDeviceAsync(string deviceId, CancellationToken cancellationToken = default)
@@ -178,7 +146,6 @@ namespace IotDashboard.Api.Services
                 .Select(x => new LatestDeviceTelemetryStatusDto
                 {
                     TenantId = x.TenantId,
-                    SiteId = x.SiteId,
                     DeviceId = x.DeviceId,
                     ReceivedAtUtc = x.ReceivedAtUtc,
                     IsCrcValid = x.IsCrcValid,
@@ -221,44 +188,11 @@ namespace IotDashboard.Api.Services
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task<List<TelemetryHistoryItemDto>> GetHistoryBySiteAsync(
-            string siteId,
-            DateTime? fromUtc,
-            DateTime? toUtc,
-            int limit,
-            CancellationToken cancellationToken = default)
-        {
-            using var scope = _scopeFactory.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AppDBContext>();
-
-            var safeLimit = Math.Clamp(limit <= 0 ? 100 : limit, 1, 1000);
-
-            var query = dbContext.TelemetryMessages
-                .AsNoTracking()
-                .Where(x => x.SiteId == siteId);
-
-            if (fromUtc.HasValue)
-            {
-                query = query.Where(x => x.ReceivedAtUtc >= fromUtc.Value);
-            }
-
-            if (toUtc.HasValue)
-            {
-                query = query.Where(x => x.ReceivedAtUtc <= toUtc.Value);
-            }
-
-            return await query
-                .OrderByDescending(x => x.ReceivedAtUtc)
-                .Take(safeLimit)
-                .Select(MapHistoryDto)
-                .ToListAsync(cancellationToken);
-        }
 
         private static System.Linq.Expressions.Expression<Func<TelemetryMessage, TelemetryHistoryItemDto>> MapHistoryDto => x => new TelemetryHistoryItemDto
         {
             Id = x.Id,
             TenantId = x.TenantId,
-            SiteId = x.SiteId,
             DeviceId = x.DeviceId,
             Topic = x.Topic,
             ReceivedAtUtc = x.ReceivedAtUtc,
@@ -287,28 +221,26 @@ namespace IotDashboard.Api.Services
             };
         }
 
-        private static (string TenantId, string SiteId, string DeviceId) ResolveTelemetryIdentifiers(string topic, MqttPayloadDecodeResult decodedPayload)
+        private static (string TenantId, string DeviceId) ResolveTelemetryIdentifiers(string topic, MqttPayloadDecodeResult decodedPayload)
         {
             if (decodedPayload.TelemetryPacket != null)
             {
                 return (
                     decodedPayload.TelemetryPacket.TenantId,
-                    decodedPayload.TelemetryPacket.SiteId,
                     decodedPayload.TelemetryPacket.DeviceId);
             }
 
-            if (TryParseTopic(topic, out var tenantId, out var siteId, out var deviceId))
+            if (TryParseTopic(topic, out var tenantId, out var deviceId))
             {
-                return (tenantId, siteId, deviceId);
+                return (tenantId, deviceId);
             }
 
-            return ("unknown-tenant", "unknown-site", "unknown-device");
+            return ("unknown-tenant", "unknown-device");
         }
 
-        private static bool TryParseTopic(string topic, out string tenantId, out string siteId, out string deviceId)
+        private static bool TryParseTopic(string topic, out string tenantId, out string deviceId)
         {
             tenantId = string.Empty;
-            siteId = string.Empty;
             deviceId = string.Empty;
 
             if (string.IsNullOrWhiteSpace(topic))
@@ -329,7 +261,6 @@ namespace IotDashboard.Api.Services
             }
 
             tenantId = segments[1];
-            siteId = segments[2];
             deviceId = segments[3];
             return true;
         }

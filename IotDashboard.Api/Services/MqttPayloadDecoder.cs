@@ -37,7 +37,7 @@ namespace IotDashboard.Api.Services
 
             var bytes = Convert.FromHexString(normalized);
 
-            var topicMatched = TryParseTelecomTopic(topic, out var tenantId, out var siteId, out var topicDeviceId);
+            var topicMatched = TryParseTelecomTopic(topic, out var tenantId, out var topicDeviceId);
             if (!topicMatched && bytes.Length != PacketLength)
             {
                 return new MqttPayloadDecodeResult
@@ -58,11 +58,10 @@ namespace IotDashboard.Api.Services
             if (!topicMatched)
             {
                 tenantId = "unknown-tenant";
-                siteId = "unknown-site";
                 topicDeviceId = "unknown-device";
             }
 
-            var packet = ParseTelecomTelemetry(bytes, tenantId, siteId, topicDeviceId);
+            var packet = ParseTelecomTelemetry(bytes, tenantId, topicDeviceId);
 
             return new MqttPayloadDecodeResult
             {
@@ -72,7 +71,6 @@ namespace IotDashboard.Api.Services
                 Fields = new Dictionary<string, object>
                 {
                     ["TenantId"] = packet.TenantId,
-                    ["SiteId"] = packet.SiteId,
                     ["DeviceId"] = packet.DeviceId,
                     ["IsCrcValid"] = packet.IsCrcValid,
                     ["TopicMatchedTelecomPattern"] = topicMatched
@@ -84,7 +82,6 @@ namespace IotDashboard.Api.Services
         private static TelecomTelemetryPacket ParseTelecomTelemetry(
             byte[] bytes,
             string tenantId,
-            string siteId,
             string topicDeviceId)
         {
             if (bytes.Length != PacketLength)
@@ -95,7 +92,6 @@ namespace IotDashboard.Api.Services
             var packet = new TelecomTelemetryPacket
             {
                 TenantId = tenantId,
-                SiteId = siteId,
                 DeviceId = topicDeviceId,
 
                 EpochTime = UnixTimeOrNull(ReadU32(bytes, 0x00), 0xFFFFFFFF),
@@ -104,7 +100,6 @@ namespace IotDashboard.Api.Services
                 DeviceType = ReadU8(bytes, 0x09),
                 Manufacturer = EnumOrNull<ManufacturerType>(ReadU8(bytes, 0x0A), 0xFF),
                 Model = EnumOrNull<ModelType>(ReadU8(bytes, 0x0B), 0xFF),
-                SiteIdHash = ReadU32(bytes, 0x0C),
                 DeviceIdHash = ReadU32(bytes, 0x10),
                 PacketSequence = ReadU16(bytes, 0x14),
                 SystemStatus = (SystemStatusFlags)ReadU16(bytes, 0x16),
@@ -194,10 +189,9 @@ namespace IotDashboard.Api.Services
             return packet;
         }
 
-        private static bool TryParseTelecomTopic(string topic, out string tenantId, out string siteId, out string deviceId)
+        private static bool TryParseTelecomTopic(string topic, out string tenantId, out string deviceId)
         {
             tenantId = string.Empty;
-            siteId = string.Empty;
             deviceId = string.Empty;
 
             if (string.IsNullOrWhiteSpace(topic))
@@ -218,7 +212,6 @@ namespace IotDashboard.Api.Services
             }
 
             tenantId = segments[1];
-            siteId = segments[2];
             deviceId = segments[3];
             return true;
         }

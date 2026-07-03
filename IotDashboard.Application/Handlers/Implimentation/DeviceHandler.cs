@@ -16,13 +16,11 @@ namespace IotDashboard.Application.Handlers.Implimentation
     public class DeviceHandler : BaseHandler<DeviceVM, Device>, IDeviceHandler
     {
         private readonly IDeviceRepository _deviceRepository;
-        private readonly ISiteRepository _siteRepository;
         private readonly ICurrentUserService _currentUserService;
         private readonly IValidator<DeviceInfrastructurePatchVM> _infrastructurePatchValidator;
 
         public DeviceHandler(
             IDeviceRepository deviceRepository,
-            ISiteRepository siteRepository,
             ICurrentUserService currentUserService,
             IValidator<DeviceVM> validator,
             IValidator<DeviceInfrastructurePatchVM> infrastructurePatchValidator,
@@ -31,7 +29,6 @@ namespace IotDashboard.Application.Handlers.Implimentation
             : base(deviceRepository, DeviceMapper.Mapper.Value, validator, filterValidator, httpContextAccessor)
         {
             _deviceRepository = deviceRepository;
-            _siteRepository = siteRepository;
             _currentUserService = currentUserService;
             _infrastructurePatchValidator = infrastructurePatchValidator;
         }

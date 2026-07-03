@@ -4,7 +4,6 @@ namespace IotDashboard.Domain.Entities
     {
         public long Id { get; set; }
         public string TenantId { get; set; } = string.Empty;
-        public string SiteId { get; set; } = string.Empty;
         public string DeviceId { get; set; } = string.Empty;
         public string Topic { get; set; } = string.Empty;
         public DateTime ReceivedAtUtc { get; set; }

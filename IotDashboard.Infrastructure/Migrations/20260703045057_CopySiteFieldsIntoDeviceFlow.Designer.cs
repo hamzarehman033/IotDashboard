@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using IotDashboard.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace IotDashboard.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDBContext))]
-    partial class AppDBContextModelSnapshot : ModelSnapshot
+    [Migration("20260703045057_CopySiteFieldsIntoDeviceFlow")]
+    partial class CopySiteFieldsIntoDeviceFlow
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -226,6 +229,9 @@ namespace IotDashboard.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<long>("SiteId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("SolarBrand")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -256,6 +262,9 @@ namespace IotDashboard.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("RegionId");
+
+                    b.HasIndex("SiteId")
+                        .IsUnique();
 
                     b.HasIndex("SubRegionId");
 
@@ -290,6 +299,11 @@ namespace IotDashboard.Infrastructure.Migrations
                     b.Property<DateTime>("ReceivedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("SiteId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("SummaryPayloadJson")
                         .IsRequired()
                         .HasColumnType("jsonb");
@@ -303,6 +317,8 @@ namespace IotDashboard.Infrastructure.Migrations
 
                     b.HasIndex("DeviceId")
                         .IsUnique();
+
+                    b.HasIndex("SiteId");
 
                     b.ToTable("DeviceTelemetryLatest", (string)null);
                 });
@@ -531,6 +547,79 @@ namespace IotDashboard.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Role", (string)null);
+                });
+
+            modelBuilder.Entity("IotDashboard.Domain.Entities.Site", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Coordinates")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("CreatedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("CustomerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<long?>("ModifiedBy")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ModifiedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("RegionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<long>("SubRegionId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ZoneId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RegionId");
+
+                    b.HasIndex("SubRegionId");
+
+                    b.HasIndex("ZoneId");
+
+                    b.HasIndex("CustomerId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("Sites", (string)null);
                 });
 
             modelBuilder.Entity("IotDashboard.Domain.Entities.Subscription", b =>
@@ -805,6 +894,13 @@ namespace IotDashboard.Infrastructure.Migrations
                     b.Property<int?>("RelayOutputBitmap")
                         .HasColumnType("integer");
 
+                    b.Property<string>("SiteId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long?>("SiteIdHash")
+                        .HasColumnType("bigint");
+
                     b.Property<int>("SiteNumber")
                         .HasColumnType("integer");
 
@@ -895,6 +991,11 @@ namespace IotDashboard.Infrastructure.Migrations
                     b.Property<DateTime>("ReceivedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("SiteId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("TenantId")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -909,7 +1010,7 @@ namespace IotDashboard.Infrastructure.Migrations
 
                     b.HasIndex("ReceivedAtUtc");
 
-                    b.HasIndex("TenantId", "DeviceId", "ReceivedAtUtc");
+                    b.HasIndex("TenantId", "SiteId", "DeviceId", "ReceivedAtUtc");
 
                     b.ToTable("TelemetryMessages", (string)null);
                 });
@@ -1185,6 +1286,12 @@ namespace IotDashboard.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("IotDashboard.Domain.Entities.Site", "Site")
+                        .WithMany()
+                        .HasForeignKey("SiteId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("IotDashboard.Domain.Entities.Location", "SubRegion")
                         .WithMany()
                         .HasForeignKey("SubRegionId")
@@ -1200,6 +1307,8 @@ namespace IotDashboard.Infrastructure.Migrations
                     b.Navigation("Customer");
 
                     b.Navigation("Region");
+
+                    b.Navigation("Site");
 
                     b.Navigation("SubRegion");
 
@@ -1222,6 +1331,41 @@ namespace IotDashboard.Infrastructure.Migrations
                     b.Navigation("Customer");
 
                     b.Navigation("Parent");
+                });
+
+            modelBuilder.Entity("IotDashboard.Domain.Entities.Site", b =>
+                {
+                    b.HasOne("IotDashboard.Domain.Entities.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("IotDashboard.Domain.Entities.Location", "Region")
+                        .WithMany()
+                        .HasForeignKey("RegionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IotDashboard.Domain.Entities.Location", "SubRegion")
+                        .WithMany()
+                        .HasForeignKey("SubRegionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("IotDashboard.Domain.Entities.Location", "Zone")
+                        .WithMany()
+                        .HasForeignKey("ZoneId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("Region");
+
+                    b.Navigation("SubRegion");
+
+                    b.Navigation("Zone");
                 });
 
             modelBuilder.Entity("IotDashboard.Domain.Entities.Subscription", b =>

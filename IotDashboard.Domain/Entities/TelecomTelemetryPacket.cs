@@ -12,7 +12,6 @@ namespace IotDashboard.Domain.Entities
         // Primary / Identity
         public long Id { get; set; }
         public string TenantId { get; set; } = string.Empty;
-        public string SiteId { get; set; } = string.Empty;
         public string DeviceId { get; set; } = string.Empty;
         public int TenantNumber { get; set; }
         public int SiteNumber { get; set; }
@@ -25,7 +24,6 @@ namespace IotDashboard.Domain.Entities
         public byte? DeviceType { get; set; }
         public ManufacturerType? Manufacturer { get; set; }
         public ModelType? Model { get; set; }
-        public uint? SiteIdHash { get; set; }
         public uint? DeviceIdHash { get; set; }
         public ushort? PacketSequence { get; set; }
 

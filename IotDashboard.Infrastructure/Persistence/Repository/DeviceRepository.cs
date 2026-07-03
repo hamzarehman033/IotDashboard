@@ -13,18 +13,6 @@ namespace IotDashboard.Infrastructure.Persistence.Repository
             _dbContext = dbContext;
         }
 
-        public async Task<bool> ExistsBySiteIdAsync(long siteId, long? excludeId = null)
-        {
-            var query = _dbContext.Set<Device>().AsQueryable();
-
-            if (excludeId.HasValue)
-            {
-                query = query.Where(x => x.Id != excludeId.Value);
-            }
-
-            return await query.AnyAsync(x => x.SiteId == siteId);
-        }
-
         public async Task<bool> ExistsByCodeAsync(long customerId, string code, long? excludeId = null)
         {
             var query = _dbContext.Set<Device>().AsQueryable();
