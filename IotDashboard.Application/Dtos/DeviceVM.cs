@@ -4,8 +4,11 @@ namespace IotDashboard.Application.Dtos
     {
         public long Id { get; set; }
         public long RegionId { get; set; }
+        public string RegionName { get; set; } = string.Empty;
         public long SubRegionId { get; set; }
+        public string SubRegionName { get; set; } = string.Empty;
         public long ZoneId { get; set; }
+        public string ZoneName { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string Code { get; set; } = string.Empty;
         public string Status { get; set; } = "Active";

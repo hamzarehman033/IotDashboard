@@ -16,11 +16,13 @@ namespace IotDashboard.Application.Handlers.Implimentation
     public class DeviceHandler : BaseHandler<DeviceVM, Device>, IDeviceHandler
     {
         private readonly IDeviceRepository _deviceRepository;
+        private readonly ILocationRepository _locationRepository;
         private readonly ICurrentUserService _currentUserService;
         private readonly IValidator<DeviceInfrastructurePatchVM> _infrastructurePatchValidator;
 
         public DeviceHandler(
             IDeviceRepository deviceRepository,
+            ILocationRepository locationRepository,
             ICurrentUserService currentUserService,
             IValidator<DeviceVM> validator,
             IValidator<DeviceInfrastructurePatchVM> infrastructurePatchValidator,
@@ -29,8 +31,44 @@ namespace IotDashboard.Application.Handlers.Implimentation
             : base(deviceRepository, DeviceMapper.Mapper.Value, validator, filterValidator, httpContextAccessor)
         {
             _deviceRepository = deviceRepository;
+            _locationRepository = locationRepository;
             _currentUserService = currentUserService;
             _infrastructurePatchValidator = infrastructurePatchValidator;
+        }
+
+        public override async Task<Response<PagerModel<DeviceVM>>> GetAllAsync(int pageSize = 10, int currentPage = 1, IEnumerable<FilterVM> filters = null)
+        {
+            var response = await base.GetAllAsync(pageSize, currentPage, filters);
+
+            if (response.Data?.PageData == null || !response.Data.PageData.Any())
+            {
+                return response;
+            }
+
+            var locationIds = response.Data.PageData
+                .SelectMany(x => new[] { x.RegionId, x.SubRegionId, x.ZoneId })
+                .Distinct()
+                .ToList();
+
+            var locationById = await _locationRepository.GetAllAsync()
+                .Where(x => locationIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.Name })
+                .ToDictionaryAsync(x => x.Id, x => x.Name);
+
+            foreach (var device in response.Data.PageData)
+            {
+                device.RegionName = locationById.TryGetValue(device.RegionId, out var regionName)
+                    ? regionName
+                    : string.Empty;
+                device.SubRegionName = locationById.TryGetValue(device.SubRegionId, out var subRegionName)
+                    ? subRegionName
+                    : string.Empty;
+                device.ZoneName = locationById.TryGetValue(device.ZoneId, out var zoneName)
+                    ? zoneName
+                    : string.Empty;
+            }
+
+            return response;
         }
 
         public override async Task<Response<DeviceVM>> CreateAsync(DeviceVM model)

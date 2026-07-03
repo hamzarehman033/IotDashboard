@@ -17,6 +17,16 @@ namespace IotDashboard.Application.Mappers
 
     public class DeviceProfile : Profile
     {
-        public DeviceProfile() => CreateMap<Device, DeviceVM>().ReverseMap();
+        public DeviceProfile()
+        {
+            CreateMap<Device, DeviceVM>();
+
+            CreateMap<DeviceVM, Device>()
+                .ForMember(dest => dest.Customer, opt => opt.Ignore())
+                .ForMember(dest => dest.Region, opt => opt.Ignore())
+                .ForMember(dest => dest.SubRegion, opt => opt.Ignore())
+                .ForMember(dest => dest.Zone, opt => opt.Ignore())
+                .ForMember(dest => dest.CustomerId, opt => opt.Ignore());
+        }
     }
 }
