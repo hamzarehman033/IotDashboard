@@ -67,6 +67,24 @@ namespace IotDashboard.Application.Handlers.Implimentation
             return response;
         }
 
+        public override async Task<Response<CustomerDetailVM>> UpdateAsync(long Id, CustomerDetailVM model)
+        {
+            if (string.IsNullOrEmpty(model.Slug))
+            {
+                var existingSlug = await _customerRepository
+                    .GetAllAsync(x => x.Id == Id)
+                    .Select(x => x.Slug)
+                    .FirstOrDefaultAsync();
+
+                if (string.IsNullOrWhiteSpace(existingSlug))
+                {
+                    model.Slug = await GenerateUniqueSlugAsync(model.Name);
+                }
+            }
+
+            return await base.UpdateAsync(Id, model);
+        }
+
         private async Task<string> GenerateUniqueSlugAsync(string name)
         {
             var baseSlug = ToSlug(name);
