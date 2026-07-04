@@ -53,7 +53,7 @@ namespace IotDashboard.Application.Validators
             var role = context.InstanceToValidate.Role;
             
             // SysAdmin role does not require a customer link
-            if (role?.Equals("SysAdmin", StringComparison.OrdinalIgnoreCase) == true)
+            if (role?.Equals(RoleNames.SysAdmin, StringComparison.OrdinalIgnoreCase) == true)
             {
                 return;
             }

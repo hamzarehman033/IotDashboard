@@ -1,6 +1,7 @@
 using IotDashboard.Application.Dtos;
 using IotDashboard.Application.Handlers.Interface;
 using IotDashboard.Api.Util;
+using IotDashboard.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,7 +18,7 @@ namespace IotDashboard.Api.Controllers
             _customerHandler = customerHandler;
         }
 
-        [Authorize(Roles = "SysAdmin")]
+        [Authorize(Roles = RoleNames.SysAdmin)]
         [HttpPut("{id}/subscription/{isActive}")]
         public async Task<IActionResult> SetSubscription(long id, bool isActive)
         {
@@ -25,7 +26,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = "SysAdmin")]
+        [Authorize(Roles = RoleNames.SysAdmin)]
         [HttpPut("{id}/deactivate")]
         public async Task<IActionResult> DeactivateCustomer(long id)
         {

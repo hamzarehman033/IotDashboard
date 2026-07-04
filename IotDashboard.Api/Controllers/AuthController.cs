@@ -1,6 +1,7 @@
 ﻿using IotDashboard.Api.Util;
 using IotDashboard.Application.Dtos;
 using IotDashboard.Application.Handlers.Interface;
+using IotDashboard.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -31,7 +32,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = "SysAdmin")]
+        [Authorize(Roles = RoleNames.SysAdmin)]
         [HttpPost("admin/create-user")]
         public async Task<IActionResult> CreateUser(CreateUserVM model)
         {
@@ -67,7 +68,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = "SysAdmin")]
+        [Authorize(Roles = RoleNames.SysAdmin)]
         [HttpGet("users")]
         public async Task<IActionResult> GetAllUsers()
         {
@@ -75,7 +76,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = "SysAdmin")]
+        [Authorize(Roles = RoleNames.SysAdmin)]
         [HttpGet("users/{userId}")]
         public async Task<IActionResult> GetUserById(long userId)
         {
@@ -83,7 +84,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = "SysAdmin")]
+        [Authorize(Roles = RoleNames.SysAdmin)]
         [HttpPost("users/{userId}")]
         public async Task<IActionResult> UpdateUser(long userId, UpdateUserVM model)
         {
@@ -91,7 +92,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = "SysAdmin")]
+        [Authorize(Roles = RoleNames.SysAdmin)]
         [HttpDelete("users/{userId}")]
         public async Task<IActionResult> DeleteUser(long userId)
         {
