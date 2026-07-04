@@ -10,6 +10,8 @@ namespace IotDashboard.Api.Services
         Task<DashboardSummaryResponse> GetSummary(
                 DashboardSummaryRequest request);
         Task<List<WeeklyAlertDto>> GetWeeklyAlerts();
+        Task<List<RecentSiteDto>> GetRecentSites(
+      DashboardFilterRequest request);
         Task<EnvironmentStatsResponse> TelemetryEnvironmentCounts(
     EnvironmentStatsRequest request);
         Task<List<HourlyEnvironmentDto>> TelemetryGetHourlyTempHumidityStats(
@@ -164,6 +166,106 @@ namespace IotDashboard.Api.Services
 
             return result;
         }
+
+        #endregion
+
+        #region RecentSites
+
+        public async Task<List<RecentSiteDto>> GetRecentSites(
+      DashboardFilterRequest request)
+        {
+            var startDate = GetStartDate(request.TimeRange);
+
+            var query = _context.Devices
+                .Include(x => x.Region)
+                .Include(x => x.SubRegion)
+                .Include(x => x.Zone)
+                .Where(x => x.InstallationDate >= startDate)
+                .AsQueryable();
+
+            // Filters
+            if (request.RegionId.HasValue)
+            {
+                query = query.Where(x => x.RegionId == request.RegionId.Value);
+            }
+
+            if (request.SubRegionId.HasValue)
+            {
+                query = query.Where(x => x.SubRegionId == request.SubRegionId.Value);
+            }
+
+            if (request.ZoneId.HasValue)
+            {
+                query = query.Where(x => x.ZoneId == request.ZoneId.Value);
+            }
+
+            if (request.DeviceId.HasValue)
+            {
+                query = query.Where(x => x.Id == request.DeviceId.Value);
+            }
+
+            if (request.Status.HasValue)
+            {
+                switch (request.Status.Value)
+                {
+                    case 1:
+                        query = query.Where(x => x.Status == "Active");
+                        break;
+
+                    case 2:
+                        query = query.Where(x => x.Status == "Online");
+                        break;
+
+                    case 3:
+                        query = query.Where(x => x.Status == "Offline");
+                        break;
+                }
+            }
+
+            var result = await query
+                .OrderByDescending(x => x.InstallationDate)
+                .Take(10)
+                .Select(x => new RecentSiteDto
+                {
+                    DeviceId = x.Id,
+                    Name = x.Name,
+                    Code = x.Code,
+                    Status = x.Status,
+                    Address = x.Address,
+
+                    RegionId = x.RegionId,
+                    RegionName = x.Region.Name,
+
+                    SubRegionId = x.SubRegionId,
+                    SubRegionName = x.SubRegion.Name,
+
+                    ZoneId = x.ZoneId,
+                    ZoneName = x.Zone.Name,
+
+                    BatteryQty = x.BatteryQty,
+                    InstallationDate = x.InstallationDate,
+
+                    Coordinates = x.Coordinates
+                })
+                .ToListAsync();
+
+            return result;
+        }
+
+        private DateTime GetStartDate(TimeRange range)
+        {
+            var now = DateTime.UtcNow;
+
+            return range switch
+            {
+                TimeRange.OneDay => now.AddDays(-1),
+                TimeRange.OneWeek => now.AddDays(-7),
+                TimeRange.OneMonth => now.AddMonths(-1),
+                TimeRange.ThreeMonths => now.AddMonths(-3),
+                _ => throw new ArgumentOutOfRangeException(nameof(range), range, null)
+            };
+        }
+
         #endregion
 
         #endregion
