@@ -6,6 +6,7 @@ using IotDashboard.Application.Validators;
 using IotDashboard.Domain.Entities;
 using IotDashboard.Domain.Interfaces;
 using IotDashboard.Infrastructure.AuditServices;
+using IotDashboard.Infrastructure.ExternalServices.Mqtt;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using FluentValidation.Results;
@@ -17,12 +18,14 @@ namespace IotDashboard.Application.Handlers.Implimentation
     {
         private readonly IDeviceRepository _deviceRepository;
         private readonly ILocationRepository _locationRepository;
+        private readonly IMqttClientService _mqttClientService;
         private readonly ICurrentUserService _currentUserService;
         private readonly IValidator<DeviceInfrastructurePatchVM> _infrastructurePatchValidator;
 
         public DeviceHandler(
             IDeviceRepository deviceRepository,
             ILocationRepository locationRepository,
+            IMqttClientService mqttClientService,
             ICurrentUserService currentUserService,
             IValidator<DeviceVM> validator,
             IValidator<DeviceInfrastructurePatchVM> infrastructurePatchValidator,
@@ -32,6 +35,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
         {
             _deviceRepository = deviceRepository;
             _locationRepository = locationRepository;
+            _mqttClientService = mqttClientService;
             _currentUserService = currentUserService;
             _infrastructurePatchValidator = infrastructurePatchValidator;
         }
@@ -182,6 +186,100 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 Status = _success,
                 Data = DeviceMapper.Mapper.Value.Map<DeviceVM>(updated)
             };
+        }
+
+        public async Task<Response<bool>> SubscribeMqttAsync(long deviceId)
+        {
+            var response = new Response<bool> { Status = _error };
+            var customerId = _currentUserService.GetCustomerId();
+            if (customerId <= 0)
+            {
+                response.Message.Add("X-Customer-Id header is required");
+                return response;
+            }
+
+            var device = await _deviceRepository
+                .GetAllAsync()
+                .FirstOrDefaultAsync(x => x.Id == deviceId);
+
+            if (device == null)
+            {
+                response.Message.Add("Device not found for the provided device id");
+                return response;
+            }
+
+            if (string.IsNullOrWhiteSpace(device.MqttHost) || string.IsNullOrWhiteSpace(device.MqttClientId))
+            {
+                response.Message.Add("Device MQTT configuration is incomplete");
+                return response;
+            }
+
+            var topics = GetConfiguredTopics(device);
+            if (topics.Count == 0)
+            {
+                response.Message.Add("No MQTT topics configured for this device");
+                return response;
+            }
+
+            await _mqttClientService.ConnectAsync(
+                (int)device.Id,
+                device.MqttHost,
+                device.MqttPort,
+                device.MqttClientId,
+                device.MqttUsername,
+                device.MqttPassword,
+                device.UseTls,
+                device.KeepAliveSeconds);
+
+            await _mqttClientService.SubscribeToTopicsAsync((int)device.Id, topics.ToArray());
+
+            response.Status = _success;
+            response.Data = true;
+            response.Message.Add("Device subscribed to MQTT topics successfully");
+            return response;
+        }
+
+        public async Task<Response<bool>> UnsubscribeMqttAsync(long deviceId)
+        {
+            var response = new Response<bool> { Status = _error };
+            var customerId = _currentUserService.GetCustomerId();
+            if (customerId <= 0)
+            {
+                response.Message.Add("X-Customer-Id header is required");
+                return response;
+            }
+
+            var device = await _deviceRepository
+                .GetAllAsync()
+                .FirstOrDefaultAsync(x => x.Id == deviceId);
+
+            if (device == null)
+            {
+                response.Message.Add("Device not found for the provided device id");
+                return response;
+            }
+
+            var topics = GetConfiguredTopics(device);
+            if (topics.Count > 0)
+            {
+                await _mqttClientService.UnsubscribeFromTopicsAsync((int)device.Id, topics.ToArray());
+            }
+
+            await _mqttClientService.DisconnectAsync((int)device.Id);
+
+            response.Status = _success;
+            response.Data = true;
+            response.Message.Add("Device unsubscribed from MQTT topics successfully");
+            return response;
+        }
+
+        private static List<string> GetConfiguredTopics(Device device)
+        {
+            return new[] { device.RmsSubscribeTopic, device.AiSubscribeTopic }
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
         }
 
         private Response<DeviceVM> ErrorResponse(string message)

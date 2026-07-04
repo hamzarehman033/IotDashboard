@@ -18,6 +18,20 @@ namespace IotDashboard.Api.Controllers
             _deviceHandler = deviceHandler;
         }
 
+        [HttpPost("{deviceId}/mqtt/subscribe")]
+        public async Task<IActionResult> SubscribeMqtt(long deviceId)
+        {
+            var res = await _deviceHandler.SubscribeMqttAsync(deviceId);
+            return res.ToResponse();
+        }
+
+        [HttpPost("{deviceId}/mqtt/unsubscribe")]
+        public async Task<IActionResult> UnsubscribeMqtt(long deviceId)
+        {
+            var res = await _deviceHandler.UnsubscribeMqttAsync(deviceId);
+            return res.ToResponse();
+        }
+
         [HttpPatch("{deviceId}/infrastructure")]
         public async Task<IActionResult> PatchInfrastructure(long deviceId, [FromBody] DeviceInfrastructurePatchVM model)
         {
