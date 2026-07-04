@@ -87,10 +87,20 @@ namespace IotDashboard.Application.Handlers.Implimentation
             else
             {
                 var user = new User { UserName = model.UserName, Email = model.Email };
-                var userResult = await _userManager.CreateAsync(user, model.Password);
+                IdentityResult userResult;
+                try
+                {
+                    userResult = await _userManager.CreateAsync(user, model.Password);
+                }
+                catch (DbUpdateException ex) when (IsUniqueUserNameViolation(ex))
+                {
+                    response.Message.Add("Username is already taken.");
+                    return response;
+                }
+
                 if (userResult.Succeeded)
                 {
-                    const string defaultRole = "User";
+                    const string defaultRole = RoleNames.User;
                     if (await _roleManager.RoleExistsAsync(defaultRole))
                     {
                         await _userManager.AddToRoleAsync(user, defaultRole);
@@ -99,6 +109,8 @@ namespace IotDashboard.Application.Handlers.Implimentation
                     response.Status = _success;
                     response.Data = _httpContextAccessor.GetResourceString("messages.user.created");
                 }
+                else if (HasDuplicateUserNameError(userResult))
+                    response.Message.Add("Username is already taken.");
                 else
                     response.Message = userResult.Errors.Select(x => x.Description).ToList();
 
@@ -109,6 +121,18 @@ namespace IotDashboard.Application.Handlers.Implimentation
         public async Task<Response<string>> CreateUser(CreateUserVM model)
         {
             Response<string> response = new Response<string> { Status = _error };
+
+            var customerIdHeader = _httpContextAccessor.HttpContext?.Request?.Headers["X-Customer-Id"].FirstOrDefault();
+            if (!long.TryParse(customerIdHeader, out var customerId) || customerId <= 0)
+            {
+                response.Message.Add("X-Customer-Id header is required");
+                return response;
+            }
+
+            model.CustomerId = model.Role?.Equals(RoleNames.SysAdmin, StringComparison.OrdinalIgnoreCase) == true
+                ? null
+                : customerId;
+
             var validationResult = await _createUserValidator.ValidateAsync(model);
             if (!validationResult.IsValid)
             {
@@ -132,10 +156,23 @@ namespace IotDashboard.Application.Handlers.Implimentation
                     .Distinct()
                     .ToList()
             };
-            var userCreationResult = await _userManager.CreateAsync(user, model.Password);
+            IdentityResult userCreationResult;
+            try
+            {
+                userCreationResult = await _userManager.CreateAsync(user, model.Password);
+            }
+            catch (DbUpdateException ex) when (IsUniqueUserNameViolation(ex))
+            {
+                response.Message.Add("Username is already taken.");
+                return response;
+            }
+
             if (!userCreationResult.Succeeded)
             {
-                response.Message = userCreationResult.Errors.Select(x => x.Description).ToList();
+                if (HasDuplicateUserNameError(userCreationResult))
+                    response.Message.Add("Username is already taken.");
+                else
+                    response.Message = userCreationResult.Errors.Select(x => x.Description).ToList();
                 return response;
             }
 
@@ -257,7 +294,16 @@ namespace IotDashboard.Application.Handlers.Implimentation
             Response<List<object>> response = new Response<List<object>> { Status = _error };
             try
             {
-                var users = await _userManager.Users.ToListAsync();
+                var customerIdHeader = _httpContextAccessor.HttpContext?.Request?.Headers["X-Customer-Id"].FirstOrDefault();
+                if (!long.TryParse(customerIdHeader, out var customerId) || customerId <= 0)
+                {
+                    response.Message.Add("X-Customer-Id header is required");
+                    return response;
+                }
+
+                var users = await _userManager.Users
+                    .Where(x => x.CustomerId == customerId)
+                    .ToListAsync();
                 var usersWithRoles = new List<object>();
 
                 foreach (var user in users)
@@ -303,6 +349,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 Id = user.Id,
                 UserName = user.UserName,
                 Email = user.Email,
+                PhoneNumber = user.PhoneNumber,
                 CustomerId = user.CustomerId,
                 Modules = user.Modules ?? new List<long>(),
                 Roles = roles.ToList()
@@ -338,7 +385,17 @@ namespace IotDashboard.Application.Handlers.Implimentation
                     .ToList();
             }
 
-            var result = await _userManager.UpdateAsync(user);
+            IdentityResult result;
+            try
+            {
+                result = await _userManager.UpdateAsync(user);
+            }
+            catch (DbUpdateException ex) when (IsUniqueUserNameViolation(ex))
+            {
+                response.Message.Add("Username is already taken.");
+                return response;
+            }
+
             if (result.Succeeded)
             {
                 if (!string.IsNullOrWhiteSpace(model.Role))
@@ -379,7 +436,10 @@ namespace IotDashboard.Application.Handlers.Implimentation
             }
             else
             {
-                response.Message = result.Errors.Select(x => x.Description).ToList();
+                if (HasDuplicateUserNameError(result))
+                    response.Message.Add("Username is already taken.");
+                else
+                    response.Message = result.Errors.Select(x => x.Description).ToList();
             }
 
             return response;
@@ -449,6 +509,20 @@ namespace IotDashboard.Application.Handlers.Implimentation
             );
             var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
             return tokenString;
+        }
+
+        private static bool HasDuplicateUserNameError(IdentityResult result)
+        {
+            return result.Errors.Any(x =>
+                string.Equals(x.Code, "DuplicateUserName", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool IsUniqueUserNameViolation(DbUpdateException ex)
+        {
+            var details = ex.ToString();
+            return details.Contains("IX_User_CustomerId_UserName", StringComparison.OrdinalIgnoreCase)
+                || (details.Contains("duplicate key value", StringComparison.OrdinalIgnoreCase)
+                    && details.Contains("UserName", StringComparison.OrdinalIgnoreCase));
         }
 
 

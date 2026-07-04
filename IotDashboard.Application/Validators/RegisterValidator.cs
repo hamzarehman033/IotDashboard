@@ -4,6 +4,7 @@ using IotDashboard.Domain.Entities;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,7 +23,7 @@ namespace IotDashboard.Application.Validators
             _httpContextAccessor = httpContextAccessor;
             RuleFor(x => x.Email).NotEmpty().WithMessage(_httpContextAccessor.GetResourceString("validations.required")).CustomAsync(CheckEmail);
             RuleFor(x => x.Password).NotEmpty().WithMessage(_httpContextAccessor.GetResourceString("validations.required"));
-            RuleFor(x => x.UserName).NotEmpty().WithMessage(_httpContextAccessor.GetResourceString("validations.required"));
+            RuleFor(x => x.UserName).NotEmpty().WithMessage(_httpContextAccessor.GetResourceString("validations.required")).CustomAsync(CheckUserName);
         }
 
         private async Task CheckEmail(string email, ValidationContext<RegisterVM> context,
@@ -36,9 +37,12 @@ namespace IotDashboard.Application.Validators
         private async Task CheckUserName(string name, ValidationContext<RegisterVM> context,
            CancellationToken token)
         {
-            var user = await _userManager.FindByNameAsync(name);
-            if (user != null)
-                context.AddFailure(_httpContextAccessor.GetResourceString("validations.email.registerd"));
+            var userExists = await _userManager.Users.AnyAsync(
+                x => x.CustomerId == null && x.UserName == name,
+                token);
+
+            if (userExists)
+                context.AddFailure(_httpContextAccessor.GetResourceString("validations.username.registerd"));
         }
     }
 }

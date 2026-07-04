@@ -30,6 +30,7 @@ namespace IotDashboard.Infrastructure.Persistence
             modelBuilder.Entity<User>(entity =>
             {
                 entity.ToTable(name: "User");
+                entity.HasIndex(x => new { x.CustomerId, x.UserName }).IsUnique();
                 entity.Property(x => x.Modules)
                     .HasColumnType("bigint[]")
                     .HasDefaultValueSql("'{}'::bigint[]");

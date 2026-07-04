@@ -81,9 +81,14 @@ namespace IotDashboard.Application.Util
                 for (int i = 0; i < keys.Length - 1; i++)
                 {
                     string item = keys[i];
-                    obj = JsonConvert.DeserializeObject<Dictionary<string, object>>(obj[item].ToString());
+                    if (!obj.TryGetValue(item, out var nested) || nested == null)
+                        return key;
+
+                    obj = JsonConvert.DeserializeObject<Dictionary<string, object>>(nested.ToString());
+                    if (obj == null)
+                        return key;
                 }
-                resource = obj.ContainsKey(lastKey) ? obj[lastKey]?.ToString() : string.Empty;
+                resource = obj.ContainsKey(lastKey) ? obj[lastKey]?.ToString() : key;
             }
             return resource;
         }

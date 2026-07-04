@@ -5,6 +5,7 @@ using IotDashboard.Domain.Interfaces;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace IotDashboard.Application.Validators
 {
@@ -41,8 +42,12 @@ namespace IotDashboard.Application.Validators
 
         private async Task CheckUserName(string userName, ValidationContext<CreateUserVM> context, CancellationToken token)
         {
-            var user = await _userManager.FindByNameAsync(userName);
-            if (user != null)
+            var customerId = context.InstanceToValidate.CustomerId;
+            var userExists = await _userManager.Users.AnyAsync(
+                x => x.CustomerId == customerId && x.UserName == userName,
+                token);
+
+            if (userExists)
             {
                 context.AddFailure(_httpContextAccessor.GetResourceString("validations.username.registerd"));
             }

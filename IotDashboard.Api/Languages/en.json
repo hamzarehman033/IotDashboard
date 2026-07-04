@@ -12,6 +12,9 @@
       "format": "{PropertyName} is not valid email.",
       "registerd": "Email is already registerd."
     },
+    "username": {
+      "registerd": "Username is already registered."
+    },
     "filter": {
       "key": "{PropertyName} must be a valid property in VM.",
       "operator": "Operator '{0}' is not supported.",
