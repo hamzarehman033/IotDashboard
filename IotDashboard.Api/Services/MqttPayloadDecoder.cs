@@ -21,7 +21,7 @@ namespace IotDashboard.Api.Services
 
     public class MqttPayloadDecoder : IMqttPayloadDecoder
     {
-        private const int PacketLength = 160;
+        private const int PacketLength  = 188;
 
         public MqttPayloadDecodeResult Decode(string topic, string payload)
         {
@@ -51,7 +51,7 @@ namespace IotDashboard.Api.Services
                         ["ExpectedPacketLength"] = PacketLength
                     },
                     TelemetryPacket = null,
-                    Error = $"Topic does not match telecom format and payload length is {bytes.Length} bytes (expected {PacketLength})."
+                    Error = $"Payload length is {bytes.Length} bytes (expected {PacketLength} bytes)."
                 };
             }
 
@@ -180,6 +180,17 @@ namespace IotDashboard.Api.Services
                 Alarm3Code = ReadU16(bytes, 0x8F),
                 Alarm3Level = EnumOrNull<AlarmLevelType>(ReadU8(bytes, 0x91), 0xFF),
                 AlarmBitmap1 = ReadU32(bytes, 0x92),
+
+                GensetPowerW = NullableU32(ReadU32(bytes, 0xA0), 0xFFFFFFFF),
+                Tenant1LoadW = ReadU32(bytes, 0xA4),
+                Tenant1CurrentA = ScaleI16Nullable(ReadI16(bytes, 0xA8), 0x7FFF, 10),
+                Tenant2LoadW = ReadU32(bytes, 0xAA),
+                Tenant2CurrentA = ScaleI16Nullable(ReadI16(bytes, 0xAE), 0x7FFF, 10),
+                Tenant3LoadW = ReadU32(bytes, 0xB0),
+                Tenant3CurrentA = ScaleI16Nullable(ReadI16(bytes, 0xB4), 0x7FFF, 10),
+                Tenant4LoadW = ReadU32(bytes, 0xB6),
+                Tenant4CurrentA = ScaleI16Nullable(ReadI16(bytes, 0xBA), 0x7FFF, 10),
+
                 Crc16 = ReadU16(bytes, 0x9E)
             };
 

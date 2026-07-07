@@ -95,6 +95,17 @@ namespace IotDashboard.Domain.Entities
         public bool? FuelTheftAlarm { get; set; }
         public bool? FuelLowAlarm { get; set; }
 
+        // Extended payload (0xA0+)
+        public uint? GensetPowerW { get; set; }
+        public uint? Tenant1LoadW { get; set; }
+        public decimal? Tenant1CurrentA { get; set; }
+        public uint? Tenant2LoadW { get; set; }
+        public decimal? Tenant2CurrentA { get; set; }
+        public uint? Tenant3LoadW { get; set; }
+        public decimal? Tenant3CurrentA { get; set; }
+        public uint? Tenant4LoadW { get; set; }
+        public decimal? Tenant4CurrentA { get; set; }
+
         // Environment / Sensors
         public decimal? AmbientTemperature1 { get; set; }
         public decimal? AmbientTemperature2 { get; set; }

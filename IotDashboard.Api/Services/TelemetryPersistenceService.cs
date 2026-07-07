@@ -216,6 +216,15 @@ namespace IotDashboard.Api.Services
                 packet?.BatteryRemainingPercent,
                 packet?.SolarPowerW,
                 packet?.GensetRunning,
+                packet?.GensetPowerW,
+                packet?.Tenant1LoadW,
+                packet?.Tenant1CurrentA,
+                packet?.Tenant2LoadW,
+                packet?.Tenant2CurrentA,
+                packet?.Tenant3LoadW,
+                packet?.Tenant3CurrentA,
+                packet?.Tenant4LoadW,
+                packet?.Tenant4CurrentA,
                 packet?.IsCrcValid,
                 decodedPayload.Error
             };
