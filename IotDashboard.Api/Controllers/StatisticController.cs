@@ -76,5 +76,70 @@ namespace IotDashboard.Api.Controllers
             var result = await _statisticService.GetRecentAnomalies();
             return Ok(result);
         }
+
+        [AllowAnonymous]
+        [HttpPost("battery-status-report")]
+        public async Task<IActionResult> GetBatteryStatusReport([FromBody] BatteryStatusReportRequest request)
+        {
+            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            {
+                return BadRequest("If provided, DeviceId must be greater than 0.");
+            }
+
+            var result = await _statisticService.GetBatteryStatusReport(request);
+            return Ok(result);
+        }
+
+        [AllowAnonymous]
+        [HttpPost("solar-status-report")]
+        public async Task<IActionResult> GetSolarStatusReport([FromBody] SolarStatusReportRequest request)
+        {
+            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            {
+                return BadRequest("If provided, DeviceId must be greater than 0.");
+            }
+
+            var result = await _statisticService.GetSolarStatusReport(request);
+            return Ok(result);
+        }
+
+        [AllowAnonymous]
+        [HttpPost("grid-status-report")]
+        public async Task<IActionResult> GetGridStatusReport([FromBody] GridStatusReportRequest request)
+        {
+            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            {
+                return BadRequest("If provided, DeviceId must be greater than 0.");
+            }
+
+            var result = await _statisticService.GetGridStatusReport(request);
+            return Ok(result);
+        }
+
+        [AllowAnonymous]
+        [HttpPost("alarm-status-report")]
+        public async Task<IActionResult> GetAlarmStatusReport([FromBody] AlarmStatusReportRequest request)
+        {
+            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            {
+                return BadRequest("If provided, DeviceId must be greater than 0.");
+            }
+
+            var result = await _statisticService.GetAlarmStatusReport(request);
+            return Ok(result);
+        }
+
+        [AllowAnonymous]
+        [HttpPost("energy-consumption-report")]
+        public async Task<IActionResult> GetEnergyConsumptionReport([FromBody] EnergyConsumptionReportRequest request)
+        {
+            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            {
+                return BadRequest("If provided, DeviceId must be greater than 0.");
+            }
+
+            var result = await _statisticService.GetEnergyConsumptionReport(request);
+            return Ok(result);
+        }
     }
 }

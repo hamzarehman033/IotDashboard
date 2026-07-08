@@ -18,6 +18,11 @@ namespace IotDashboard.Api.Services
             HourlyEnvironmentRequest request);
         Task<List<TopSensorActivityDto>> GetTop5DevicesByActivityInLastHour();
         Task<List<AnomalyEventDto>> GetRecentAnomalies();
+        Task<BatteryStatusReportResponse> GetBatteryStatusReport(BatteryStatusReportRequest request);
+        Task<SolarStatusReportResponse> GetSolarStatusReport(SolarStatusReportRequest request);
+        Task<GridStatusReportResponse> GetGridStatusReport(GridStatusReportRequest request);
+        Task<AlarmStatusReportResponse> GetAlarmStatusReport(AlarmStatusReportRequest request);
+        Task<EnergyConsumptionReportResponse> GetEnergyConsumptionReport(EnergyConsumptionReportRequest request);
     }
     public class StatisticService : IStatisticService
     {
@@ -271,6 +276,551 @@ namespace IotDashboard.Api.Services
         #endregion
 
         #region Telemetry
+
+        #region BatteryStatusReport
+
+        public async Task<BatteryStatusReportResponse> GetBatteryStatusReport(BatteryStatusReportRequest request)
+        {
+            var (fromUtc, toUtc) = ResolveBatteryReportRange(request);
+
+            var baseQuery = from packet in _context.TelecomTelemetryPackets
+                            join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
+                            from device in deviceJoin.DefaultIfEmpty()
+                            where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
+                            select new
+                            {
+                                Packet = packet,
+                                SiteName = device != null ? device.Name : null
+                            };
+
+            if (request.DeviceId.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+            }
+
+            var rows = await baseQuery
+                .GroupBy(x => new
+                {
+                    x.Packet.DeviceNumber,
+                    x.Packet.DeviceId,
+                    x.SiteName,
+                    x.Packet.ReceivedAtUtc.Year,
+                    x.Packet.ReceivedAtUtc.Month,
+                    x.Packet.ReceivedAtUtc.Day,
+                    x.Packet.ReceivedAtUtc.Hour
+                })
+                .Select(g => new BatteryStatusReportRowDto
+                {
+                    DeviceId = g.Key.DeviceNumber,
+                    SiteName = !string.IsNullOrWhiteSpace(g.Key.SiteName)
+                        ? g.Key.SiteName
+                        : (string.IsNullOrWhiteSpace(g.Key.DeviceId) ? "Unknown Site" : g.Key.DeviceId),
+                    DateUtc = new DateTime(
+                        g.Key.Year,
+                        g.Key.Month,
+                        g.Key.Day,
+                        g.Key.Hour,
+                        0,
+                        0,
+                        DateTimeKind.Utc),
+                    PacketsCount = g.Count(),
+                    AvgBatteryVoltage = g.Average(x => (decimal?)x.Packet.BatteryVoltage),
+                    AvgBatteryCurrent = g.Average(x => (decimal?)x.Packet.BatteryCurrent),
+                    AvgBatteryTemperature = g.Average(x => (decimal?)x.Packet.BatteryTemperature),
+                    AvgBatteryRemainingPercent = g.Average(x => (decimal?)x.Packet.BatteryRemainingPercent),
+                    AvgBatterySoh = g.Average(x => (decimal?)x.Packet.BatterySoh)
+                })
+                .OrderBy(x => x.DateUtc)
+                .ThenBy(x => x.SiteName)
+                .ToListAsync();
+
+            return new BatteryStatusReportResponse
+            {
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                TotalRecords = rows.Count,
+                Records = rows
+            };
+        }
+
+        private (DateTime FromUtc, DateTime ToUtc) ResolveBatteryReportRange(BatteryStatusReportRequest request)
+        {
+            var toUtc = request.ToUtc ?? DateTime.UtcNow;
+
+            DateTime fromUtc;
+
+            if (request.FromUtc.HasValue)
+            {
+                fromUtc = request.FromUtc.Value;
+            }
+            else if (request.TimeRange.HasValue)
+            {
+                fromUtc = request.TimeRange.Value switch
+                {
+                    TimeRange.OneDay => toUtc.AddDays(-1),
+                    TimeRange.OneWeek => toUtc.AddDays(-7),
+                    TimeRange.OneMonth => toUtc.AddMonths(-1),
+                    TimeRange.ThreeMonths => toUtc.AddMonths(-3),
+                    _ => toUtc.AddDays(-1)
+                };
+            }
+            else
+            {
+                fromUtc = toUtc.AddDays(-1);
+            }
+
+            if (fromUtc > toUtc)
+            {
+                (fromUtc, toUtc) = (toUtc, fromUtc);
+            }
+
+            return (fromUtc, toUtc);
+        }
+
+        #endregion
+
+        #region SolarStatusReport
+
+        public async Task<SolarStatusReportResponse> GetSolarStatusReport(SolarStatusReportRequest request)
+        {
+            var (fromUtc, toUtc) = ResolveSolarReportRange(request);
+
+            var baseQuery = from packet in _context.TelecomTelemetryPackets
+                            join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
+                            from device in deviceJoin.DefaultIfEmpty()
+                            where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
+                            select new
+                            {
+                                Packet = packet,
+                                SiteName = device != null ? device.Name : null
+                            };
+
+            if (request.DeviceId.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+            }
+
+            var rows = await baseQuery
+                .GroupBy(x => new
+                {
+                    x.Packet.DeviceNumber,
+                    x.Packet.DeviceId,
+                    x.SiteName,
+                    x.Packet.ReceivedAtUtc.Year,
+                    x.Packet.ReceivedAtUtc.Month,
+                    x.Packet.ReceivedAtUtc.Day,
+                    x.Packet.ReceivedAtUtc.Hour
+                })
+                .Select(g => new SolarStatusReportRowDto
+                {
+                    DeviceId = g.Key.DeviceNumber,
+                    SiteName = !string.IsNullOrWhiteSpace(g.Key.SiteName)
+                        ? g.Key.SiteName
+                        : (string.IsNullOrWhiteSpace(g.Key.DeviceId) ? "Unknown Site" : g.Key.DeviceId),
+                    DateUtc = new DateTime(
+                        g.Key.Year,
+                        g.Key.Month,
+                        g.Key.Day,
+                        g.Key.Hour,
+                        0,
+                        0,
+                        DateTimeKind.Utc),
+                    PacketsCount = g.Count(),
+                    AvgSolarVoltage = g.Average(x => (decimal?)x.Packet.SolarVoltage),
+                    AvgSolarCurrent = g.Average(x => (decimal?)x.Packet.SolarCurrent),
+                    AvgSolarPowerW = g.Average(x => x.Packet.SolarPowerW.HasValue ? (decimal?)x.Packet.SolarPowerW.Value : null),
+                    AvgSolarEnergyTodayWh = g.Average(x => x.Packet.SolarEnergyTodayWh.HasValue ? (decimal?)x.Packet.SolarEnergyTodayWh.Value : null),
+                    SolarAvailablePercent = g.Count(x => x.Packet.SolarAvailable.HasValue) == 0
+                        ? 0
+                        : Math.Round((decimal)g.Count(x => x.Packet.SolarAvailable == true) * 100m / g.Count(x => x.Packet.SolarAvailable.HasValue), 2)
+                })
+                .OrderBy(x => x.DateUtc)
+                .ThenBy(x => x.SiteName)
+                .ToListAsync();
+
+            return new SolarStatusReportResponse
+            {
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                TotalRecords = rows.Count,
+                Records = rows
+            };
+        }
+
+        private (DateTime FromUtc, DateTime ToUtc) ResolveSolarReportRange(SolarStatusReportRequest request)
+        {
+            var toUtc = request.ToUtc ?? DateTime.UtcNow;
+
+            DateTime fromUtc;
+
+            if (request.FromUtc.HasValue)
+            {
+                fromUtc = request.FromUtc.Value;
+            }
+            else if (request.TimeRange.HasValue)
+            {
+                fromUtc = request.TimeRange.Value switch
+                {
+                    TimeRange.OneDay => toUtc.AddDays(-1),
+                    TimeRange.OneWeek => toUtc.AddDays(-7),
+                    TimeRange.OneMonth => toUtc.AddMonths(-1),
+                    TimeRange.ThreeMonths => toUtc.AddMonths(-3),
+                    _ => toUtc.AddDays(-1)
+                };
+            }
+            else
+            {
+                fromUtc = toUtc.AddDays(-1);
+            }
+
+            if (fromUtc > toUtc)
+            {
+                (fromUtc, toUtc) = (toUtc, fromUtc);
+            }
+
+            return (fromUtc, toUtc);
+        }
+
+        #endregion
+
+        #region GridStatusReport
+
+        public async Task<GridStatusReportResponse> GetGridStatusReport(GridStatusReportRequest request)
+        {
+            var (fromUtc, toUtc) = ResolveGridReportRange(request);
+
+            var baseQuery = from packet in _context.TelecomTelemetryPackets
+                            join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
+                            from device in deviceJoin.DefaultIfEmpty()
+                            where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
+                            select new
+                            {
+                                Packet = packet,
+                                SiteName = device != null ? device.Name : null
+                            };
+
+            if (request.DeviceId.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+            }
+
+            var rows = await baseQuery
+                .GroupBy(x => new
+                {
+                    x.Packet.DeviceNumber,
+                    x.Packet.DeviceId,
+                    x.SiteName,
+                    x.Packet.ReceivedAtUtc.Year,
+                    x.Packet.ReceivedAtUtc.Month,
+                    x.Packet.ReceivedAtUtc.Day,
+                    x.Packet.ReceivedAtUtc.Hour
+                })
+                .Select(g => new GridStatusReportRowDto
+                {
+                    DeviceId = g.Key.DeviceNumber,
+                    SiteName = !string.IsNullOrWhiteSpace(g.Key.SiteName)
+                        ? g.Key.SiteName
+                        : (string.IsNullOrWhiteSpace(g.Key.DeviceId) ? "Unknown Site" : g.Key.DeviceId),
+                    DateUtc = new DateTime(
+                        g.Key.Year,
+                        g.Key.Month,
+                        g.Key.Day,
+                        g.Key.Hour,
+                        0,
+                        0,
+                        DateTimeKind.Utc),
+                    PacketsCount = g.Count(),
+                    AvgLineAVoltage = g.Average(x => (decimal?)x.Packet.LineAVoltage),
+                    AvgLineBVoltage = g.Average(x => (decimal?)x.Packet.LineBVoltage),
+                    AvgLineCVoltage = g.Average(x => (decimal?)x.Packet.LineCVoltage),
+                    AvgLineACurrent = g.Average(x => (decimal?)x.Packet.LineACurrent),
+                    AvgLineBCurrent = g.Average(x => (decimal?)x.Packet.LineBCurrent),
+                    AvgLineCCurrent = g.Average(x => (decimal?)x.Packet.LineCCurrent),
+                    AvgAcFrequency = g.Average(x => (decimal?)x.Packet.AcFrequency),
+                    AvgAcInputPowerW = g.Average(x => x.Packet.TotalAcInputPowerW.HasValue ? (decimal?)x.Packet.TotalAcInputPowerW.Value : null),
+                    GridAvailablePercent = g.Count(x => x.Packet.MainsAvailable.HasValue) == 0
+                        ? 0
+                        : Math.Round((decimal)g.Count(x => x.Packet.MainsAvailable == true) * 100m / g.Count(x => x.Packet.MainsAvailable.HasValue), 2)
+                })
+                .OrderBy(x => x.DateUtc)
+                .ThenBy(x => x.SiteName)
+                .ToListAsync();
+
+            return new GridStatusReportResponse
+            {
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                TotalRecords = rows.Count,
+                Records = rows
+            };
+        }
+
+        private (DateTime FromUtc, DateTime ToUtc) ResolveGridReportRange(GridStatusReportRequest request)
+        {
+            var toUtc = request.ToUtc ?? DateTime.UtcNow;
+
+            DateTime fromUtc;
+
+            if (request.FromUtc.HasValue)
+            {
+                fromUtc = request.FromUtc.Value;
+            }
+            else if (request.TimeRange.HasValue)
+            {
+                fromUtc = request.TimeRange.Value switch
+                {
+                    TimeRange.OneDay => toUtc.AddDays(-1),
+                    TimeRange.OneWeek => toUtc.AddDays(-7),
+                    TimeRange.OneMonth => toUtc.AddMonths(-1),
+                    TimeRange.ThreeMonths => toUtc.AddMonths(-3),
+                    _ => toUtc.AddDays(-1)
+                };
+            }
+            else
+            {
+                fromUtc = toUtc.AddDays(-1);
+            }
+
+            if (fromUtc > toUtc)
+            {
+                (fromUtc, toUtc) = (toUtc, fromUtc);
+            }
+
+            return (fromUtc, toUtc);
+        }
+
+        #endregion
+
+        #region AlarmStatusReport
+
+        public async Task<AlarmStatusReportResponse> GetAlarmStatusReport(AlarmStatusReportRequest request)
+        {
+            var (fromUtc, toUtc) = ResolveAlarmReportRange(request);
+
+            var baseQuery = from packet in _context.TelecomTelemetryPackets
+                            join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
+                            from device in deviceJoin.DefaultIfEmpty()
+                            where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
+                            select new
+                            {
+                                Packet = packet,
+                                SiteName = device != null ? device.Name : null
+                            };
+
+            if (request.DeviceId.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+            }
+
+            var rows = await baseQuery
+                .GroupBy(x => new
+                {
+                    x.Packet.DeviceNumber,
+                    x.Packet.DeviceId,
+                    x.SiteName,
+                    x.Packet.ReceivedAtUtc.Year,
+                    x.Packet.ReceivedAtUtc.Month,
+                    x.Packet.ReceivedAtUtc.Day,
+                    x.Packet.ReceivedAtUtc.Hour
+                })
+                .Select(g => new AlarmStatusReportRowDto
+                {
+                    DeviceId = g.Key.DeviceNumber,
+                    SiteName = !string.IsNullOrWhiteSpace(g.Key.SiteName)
+                        ? g.Key.SiteName
+                        : (string.IsNullOrWhiteSpace(g.Key.DeviceId) ? "Unknown Site" : g.Key.DeviceId),
+                    DateUtc = new DateTime(
+                        g.Key.Year,
+                        g.Key.Month,
+                        g.Key.Day,
+                        g.Key.Hour,
+                        0,
+                        0,
+                        DateTimeKind.Utc),
+                    PacketsCount = g.Count(),
+                    AvgActiveAlarmCount = g.Average(x => (decimal?)(x.Packet.ActiveAlarmCount ?? 0)),
+                    PacketsWithActiveAlarms = g.Count(x => (x.Packet.ActiveAlarmCount ?? 0) > 0),
+                    CriticalAlarmPackets = g.Count(x =>
+                        x.Packet.Alarm1Level == AlarmLevelType.Critical
+                        || x.Packet.Alarm2Level == AlarmLevelType.Critical
+                        || x.Packet.Alarm3Level == AlarmLevelType.Critical),
+                    MajorAlarmPackets = g.Count(x =>
+                        x.Packet.Alarm1Level == AlarmLevelType.Major
+                        || x.Packet.Alarm2Level == AlarmLevelType.Major
+                        || x.Packet.Alarm3Level == AlarmLevelType.Major),
+                    MinorAlarmPackets = g.Count(x =>
+                        x.Packet.Alarm1Level == AlarmLevelType.Minor
+                        || x.Packet.Alarm2Level == AlarmLevelType.Minor
+                        || x.Packet.Alarm3Level == AlarmLevelType.Minor),
+                    WarningAlarmPackets = g.Count(x =>
+                        x.Packet.Alarm1Level == AlarmLevelType.Warning
+                        || x.Packet.Alarm2Level == AlarmLevelType.Warning
+                        || x.Packet.Alarm3Level == AlarmLevelType.Warning),
+                    DoorOpenEvents = g.Count(x => x.Packet.DoorOpenAlarm == true),
+                    SmokeEvents = g.Count(x => x.Packet.SmokeAlarm == true),
+                    WaterLeakEvents = g.Count(x => x.Packet.WaterLeakAlarm == true),
+                    MotionEvents = g.Count(x => x.Packet.MotionAlarm == true)
+                })
+                .OrderBy(x => x.DateUtc)
+                .ThenBy(x => x.SiteName)
+                .ToListAsync();
+
+            return new AlarmStatusReportResponse
+            {
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                TotalRecords = rows.Count,
+                Records = rows
+            };
+        }
+
+        private (DateTime FromUtc, DateTime ToUtc) ResolveAlarmReportRange(AlarmStatusReportRequest request)
+        {
+            var toUtc = request.ToUtc ?? DateTime.UtcNow;
+
+            DateTime fromUtc;
+
+            if (request.FromUtc.HasValue)
+            {
+                fromUtc = request.FromUtc.Value;
+            }
+            else if (request.TimeRange.HasValue)
+            {
+                fromUtc = request.TimeRange.Value switch
+                {
+                    TimeRange.OneDay => toUtc.AddDays(-1),
+                    TimeRange.OneWeek => toUtc.AddDays(-7),
+                    TimeRange.OneMonth => toUtc.AddMonths(-1),
+                    TimeRange.ThreeMonths => toUtc.AddMonths(-3),
+                    _ => toUtc.AddDays(-1)
+                };
+            }
+            else
+            {
+                fromUtc = toUtc.AddDays(-1);
+            }
+
+            if (fromUtc > toUtc)
+            {
+                (fromUtc, toUtc) = (toUtc, fromUtc);
+            }
+
+            return (fromUtc, toUtc);
+        }
+
+        #endregion
+
+        #region EnergyConsumptionReport
+
+        public async Task<EnergyConsumptionReportResponse> GetEnergyConsumptionReport(EnergyConsumptionReportRequest request)
+        {
+            var (fromUtc, toUtc) = ResolveEnergyConsumptionReportRange(request);
+
+            var baseQuery = from packet in _context.TelecomTelemetryPackets
+                            join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
+                            from device in deviceJoin.DefaultIfEmpty()
+                            where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
+                            select new
+                            {
+                                Packet = packet,
+                                SiteName = device != null ? device.Name : null
+                            };
+
+            if (request.DeviceId.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+            }
+
+            var rows = await baseQuery
+                .GroupBy(x => new
+                {
+                    x.Packet.DeviceNumber,
+                    x.Packet.DeviceId,
+                    x.SiteName,
+                    x.Packet.ReceivedAtUtc.Year,
+                    x.Packet.ReceivedAtUtc.Month,
+                    x.Packet.ReceivedAtUtc.Day,
+                    x.Packet.ReceivedAtUtc.Hour
+                })
+                .Select(g => new EnergyConsumptionReportRowDto
+                {
+                    DeviceId = g.Key.DeviceNumber,
+                    SiteName = !string.IsNullOrWhiteSpace(g.Key.SiteName)
+                        ? g.Key.SiteName
+                        : (string.IsNullOrWhiteSpace(g.Key.DeviceId) ? "Unknown Site" : g.Key.DeviceId),
+                    DateUtc = new DateTime(
+                        g.Key.Year,
+                        g.Key.Month,
+                        g.Key.Day,
+                        g.Key.Hour,
+                        0,
+                        0,
+                        DateTimeKind.Utc),
+                    PacketsCount = g.Count(),
+                    AvgTotalAcEnergyWh = g.Average(x => x.Packet.TotalAcEnergyWh.HasValue ? (decimal?)x.Packet.TotalAcEnergyWh.Value : null),
+                    AvgTotalDcEnergyWh = g.Average(x => x.Packet.TotalDcEnergyWh.HasValue ? (decimal?)x.Packet.TotalDcEnergyWh.Value : null),
+                    AvgSolarEnergyTodayWh = g.Average(x => x.Packet.SolarEnergyTodayWh.HasValue ? (decimal?)x.Packet.SolarEnergyTodayWh.Value : null),
+                    AvgAcInputPowerW = g.Average(x => x.Packet.TotalAcInputPowerW.HasValue ? (decimal?)x.Packet.TotalAcInputPowerW.Value : null),
+                    AvgDcLoadPowerW = g.Average(x => x.Packet.DcLoadPowerW.HasValue ? (decimal?)x.Packet.DcLoadPowerW.Value : null),
+                    AvgTenantLoadW = g.Average(x =>
+                        !x.Packet.Tenant1LoadW.HasValue
+                        && !x.Packet.Tenant2LoadW.HasValue
+                        && !x.Packet.Tenant3LoadW.HasValue
+                        && !x.Packet.Tenant4LoadW.HasValue
+                            ? (decimal?)null
+                            : (x.Packet.Tenant1LoadW.HasValue ? (decimal?)x.Packet.Tenant1LoadW.Value : 0m)
+                              + (x.Packet.Tenant2LoadW.HasValue ? (decimal?)x.Packet.Tenant2LoadW.Value : 0m)
+                              + (x.Packet.Tenant3LoadW.HasValue ? (decimal?)x.Packet.Tenant3LoadW.Value : 0m)
+                              + (x.Packet.Tenant4LoadW.HasValue ? (decimal?)x.Packet.Tenant4LoadW.Value : 0m))
+                })
+                .OrderBy(x => x.DateUtc)
+                .ThenBy(x => x.SiteName)
+                .ToListAsync();
+
+            return new EnergyConsumptionReportResponse
+            {
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                TotalRecords = rows.Count,
+                Records = rows
+            };
+        }
+
+        private (DateTime FromUtc, DateTime ToUtc) ResolveEnergyConsumptionReportRange(EnergyConsumptionReportRequest request)
+        {
+            var toUtc = request.ToUtc ?? DateTime.UtcNow;
+
+            DateTime fromUtc;
+
+            if (request.FromUtc.HasValue)
+            {
+                fromUtc = request.FromUtc.Value;
+            }
+            else if (request.TimeRange.HasValue)
+            {
+                fromUtc = request.TimeRange.Value switch
+                {
+                    TimeRange.OneDay => toUtc.AddDays(-1),
+                    TimeRange.OneWeek => toUtc.AddDays(-7),
+                    TimeRange.OneMonth => toUtc.AddMonths(-1),
+                    TimeRange.ThreeMonths => toUtc.AddMonths(-3),
+                    _ => toUtc.AddDays(-1)
+                };
+            }
+            else
+            {
+                fromUtc = toUtc.AddDays(-1);
+            }
+
+            if (fromUtc > toUtc)
+            {
+                (fromUtc, toUtc) = (toUtc, fromUtc);
+            }
+
+            return (fromUtc, toUtc);
+        }
+
+        #endregion
 
         #region TelemetryEnvironmentCounts
         public async Task<EnvironmentStatsResponse> TelemetryEnvironmentCounts(
