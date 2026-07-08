@@ -249,6 +249,9 @@ namespace IotDashboard.Application.Dtos
         public DateTime DateUtc { get; set; }
         public int PacketsCount { get; set; }
         public decimal? AvgActiveAlarmCount { get; set; }
+        public decimal? AvgAlarm1Code { get; set; }
+        public decimal? AvgAlarm2Code { get; set; }
+        public decimal? AvgAlarm3Code { get; set; }
         public int PacketsWithActiveAlarms { get; set; }
         public int CriticalAlarmPackets { get; set; }
         public int MajorAlarmPackets { get; set; }

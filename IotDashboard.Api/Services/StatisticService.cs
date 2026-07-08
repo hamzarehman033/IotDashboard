@@ -609,8 +609,16 @@ namespace IotDashboard.Api.Services
 
             if (request.DeviceId.HasValue)
             {
-                baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+                var deviceIdString = request.DeviceId.Value.ToString();
+                baseQuery = baseQuery.Where(x =>
+                    x.Packet.DeviceNumber == request.DeviceId.Value ||
+                    x.Packet.DeviceId == deviceIdString);
             }
+
+            baseQuery = baseQuery.Where(x =>
+                (x.Packet.Alarm1Code ?? 0) > 0
+                || (x.Packet.Alarm2Code ?? 0) > 0
+                || (x.Packet.Alarm3Code ?? 0) > 0);
 
             var rows = await baseQuery
                 .GroupBy(x => new
@@ -639,6 +647,9 @@ namespace IotDashboard.Api.Services
                         DateTimeKind.Utc),
                     PacketsCount = g.Count(),
                     AvgActiveAlarmCount = g.Average(x => (decimal?)(x.Packet.ActiveAlarmCount ?? 0)),
+                    AvgAlarm1Code = g.Average(x => (x.Packet.Alarm1Code ?? 0) > 0 ? (decimal?)x.Packet.Alarm1Code : null),
+                    AvgAlarm2Code = g.Average(x => (x.Packet.Alarm2Code ?? 0) > 0 ? (decimal?)x.Packet.Alarm2Code : null),
+                    AvgAlarm3Code = g.Average(x => (x.Packet.Alarm3Code ?? 0) > 0 ? (decimal?)x.Packet.Alarm3Code : null),
                     PacketsWithActiveAlarms = g.Count(x => (x.Packet.ActiveAlarmCount ?? 0) > 0),
                     CriticalAlarmPackets = g.Count(x =>
                         x.Packet.Alarm1Level == AlarmLevelType.Critical
@@ -697,7 +708,9 @@ namespace IotDashboard.Api.Services
             }
             else
             {
-                fromUtc = toUtc.AddDays(-1);
+                // Alarm report is often queried without an explicit date range.
+                // Use a wider default window so historical alarm activity is returned.
+                fromUtc = toUtc.AddMonths(-3);
             }
 
             if (fromUtc > toUtc)
