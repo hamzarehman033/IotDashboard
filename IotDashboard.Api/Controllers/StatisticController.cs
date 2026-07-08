@@ -12,10 +12,14 @@ namespace IotDashboard.Api.Controllers
     public class StatisticController : ControllerBase
     {
         private readonly IStatisticService _statisticService;
+        private readonly IReportDownloadService _reportDownloadService;
 
-        public StatisticController(IStatisticService statisticService)
+        public StatisticController(
+            IStatisticService statisticService,
+            IReportDownloadService reportDownloadService)
         {
             _statisticService = statisticService;
+            _reportDownloadService = reportDownloadService;
         }
 
         [AllowAnonymous]
@@ -140,6 +144,26 @@ namespace IotDashboard.Api.Controllers
 
             var result = await _statisticService.GetEnergyConsumptionReport(request);
             return Ok(result);
+        }
+
+        [AllowAnonymous]
+        [HttpPost("reports/download")]
+        public async Task<IActionResult> DownloadReport([FromBody] ReportDownloadRequest request)
+        {
+            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            {
+                return BadRequest("If provided, DeviceId must be greater than 0.");
+            }
+
+            try
+            {
+                var file = await _reportDownloadService.DownloadAsync(request);
+                return File(file.Content, file.ContentType, file.FileName);
+            }
+            catch (NotSupportedException ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
     }
 }

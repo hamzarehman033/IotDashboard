@@ -44,6 +44,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IMqttPayloadDecoder, MqttPayloadDecoder>();
 builder.Services.AddSingleton<ITelemetryPersistenceService, TelemetryPersistenceService>();
+builder.Services.AddSingleton<IReportExcelExportService, ReportExcelExportService>();
+builder.Services.AddTransient<IReportDownloadService, ReportDownloadService>();
 builder.Services.AddTransient<IStatisticService, StatisticService>();
 builder.Services.AddScoped<IDeviceDataService, DeviceDataService>();
 builder.Services.AddHostedService<MqttConnectionHostedService>();

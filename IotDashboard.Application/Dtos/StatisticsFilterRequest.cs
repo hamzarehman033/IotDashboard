@@ -32,6 +32,36 @@ namespace IotDashboard.Application.Dtos
         ThreeMonths
     }
 
+    public enum ReportType
+    {
+        BatteryStatus,
+        SolarStatus,
+        GridStatus,
+        AlarmStatus,
+        EnergyConsumption
+    }
+
+    public enum ReportFileFormat
+    {
+        Excel,
+        Json,
+        Csv,
+        Pdf
+    }
+
+    public class ReportDownloadRequest
+    {
+        public ReportType ReportType { get; set; }
+        public ReportFileFormat Format { get; set; } = ReportFileFormat.Excel;
+
+        [Range(1, long.MaxValue)]
+        public long? DeviceId { get; set; }
+
+        public DateTime? FromUtc { get; set; }
+        public DateTime? ToUtc { get; set; }
+        public TimeRange? TimeRange { get; set; }
+    }
+
     public class DashboardSummaryResponse
     {
         public int ActiveDevices { get; set; }
