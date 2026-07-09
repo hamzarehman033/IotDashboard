@@ -4,9 +4,11 @@ using IotDashboard.Api.Services;
 using IotDashboard.Application.Util;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi.Models;
+using QuestPDF.Infrastructure;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+QuestPDF.Settings.License = LicenseType.Community;
 // Add services to the container.
 
 builder.Services.AddControllers();
@@ -45,6 +47,8 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<IMqttPayloadDecoder, MqttPayloadDecoder>();
 builder.Services.AddSingleton<ITelemetryPersistenceService, TelemetryPersistenceService>();
 builder.Services.AddSingleton<IReportExcelExportService, ReportExcelExportService>();
+builder.Services.AddSingleton<IReportPdfExportService, ReportPdfExportService>();
+builder.Services.AddSingleton<IReportCsvExportService, ReportCsvExportService>();
 builder.Services.AddTransient<IReportDownloadService, ReportDownloadService>();
 builder.Services.AddTransient<IStatisticService, StatisticService>();
 builder.Services.AddScoped<IDeviceDataService, DeviceDataService>();
