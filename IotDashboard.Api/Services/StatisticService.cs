@@ -283,6 +283,16 @@ namespace IotDashboard.Api.Services
         {
             var (fromUtc, toUtc) = ResolveBatteryReportRange(request);
 
+            var tenantDeviceIds = new List<long>();
+            if (request.TenantId.HasValue)
+            {
+                tenantDeviceIds = await _context.DeviceTenants
+                    .Where(x => x.TenantId == request.TenantId.Value)
+                    .Select(x => x.DeviceId)
+                    .Distinct()
+                    .ToListAsync();
+            }
+
             var baseQuery = from packet in _context.TelecomTelemetryPackets
                             join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
                             from device in deviceJoin.DefaultIfEmpty()
@@ -296,6 +306,11 @@ namespace IotDashboard.Api.Services
             if (request.DeviceId.HasValue)
             {
                 baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+            }
+
+            if (request.TenantId.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => tenantDeviceIds.Contains(x.Packet.DeviceNumber));
             }
 
             var rows = await baseQuery
@@ -385,6 +400,16 @@ namespace IotDashboard.Api.Services
         {
             var (fromUtc, toUtc) = ResolveSolarReportRange(request);
 
+            var tenantDeviceIds = new List<long>();
+            if (request.TenantId.HasValue)
+            {
+                tenantDeviceIds = await _context.DeviceTenants
+                    .Where(x => x.TenantId == request.TenantId.Value)
+                    .Select(x => x.DeviceId)
+                    .Distinct()
+                    .ToListAsync();
+            }
+
             var baseQuery = from packet in _context.TelecomTelemetryPackets
                             join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
                             from device in deviceJoin.DefaultIfEmpty()
@@ -398,6 +423,11 @@ namespace IotDashboard.Api.Services
             if (request.DeviceId.HasValue)
             {
                 baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+            }
+
+            if (request.TenantId.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => tenantDeviceIds.Contains(x.Packet.DeviceNumber));
             }
 
             var rows = await baseQuery
@@ -489,6 +519,16 @@ namespace IotDashboard.Api.Services
         {
             var (fromUtc, toUtc) = ResolveGridReportRange(request);
 
+            var tenantDeviceIds = new List<long>();
+            if (request.TenantId.HasValue)
+            {
+                tenantDeviceIds = await _context.DeviceTenants
+                    .Where(x => x.TenantId == request.TenantId.Value)
+                    .Select(x => x.DeviceId)
+                    .Distinct()
+                    .ToListAsync();
+            }
+
             var baseQuery = from packet in _context.TelecomTelemetryPackets
                             join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
                             from device in deviceJoin.DefaultIfEmpty()
@@ -502,6 +542,11 @@ namespace IotDashboard.Api.Services
             if (request.DeviceId.HasValue)
             {
                 baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+            }
+
+            if (request.TenantId.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => tenantDeviceIds.Contains(x.Packet.DeviceNumber));
             }
 
             var rows = await baseQuery
@@ -597,6 +642,16 @@ namespace IotDashboard.Api.Services
         {
             var (fromUtc, toUtc) = ResolveAlarmReportRange(request);
 
+            var tenantDeviceIds = new List<long>();
+            if (request.TenantId.HasValue)
+            {
+                tenantDeviceIds = await _context.DeviceTenants
+                    .Where(x => x.TenantId == request.TenantId.Value)
+                    .Select(x => x.DeviceId)
+                    .Distinct()
+                    .ToListAsync();
+            }
+
             var baseQuery = from packet in _context.TelecomTelemetryPackets
                             join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
                             from device in deviceJoin.DefaultIfEmpty()
@@ -613,6 +668,11 @@ namespace IotDashboard.Api.Services
                 baseQuery = baseQuery.Where(x =>
                     x.Packet.DeviceNumber == request.DeviceId.Value ||
                     x.Packet.DeviceId == deviceIdString);
+            }
+
+            if (request.TenantId.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => tenantDeviceIds.Contains(x.Packet.DeviceNumber));
             }
 
             baseQuery = baseQuery.Where(x =>
@@ -729,6 +789,16 @@ namespace IotDashboard.Api.Services
         {
             var (fromUtc, toUtc) = ResolveEnergyConsumptionReportRange(request);
 
+            var tenantDeviceIds = new List<long>();
+            if (request.TenantId.HasValue)
+            {
+                tenantDeviceIds = await _context.DeviceTenants
+                    .Where(x => x.TenantId == request.TenantId.Value)
+                    .Select(x => x.DeviceId)
+                    .Distinct()
+                    .ToListAsync();
+            }
+
             var baseQuery = from packet in _context.TelecomTelemetryPackets
                             join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
                             from device in deviceJoin.DefaultIfEmpty()
@@ -742,6 +812,11 @@ namespace IotDashboard.Api.Services
             if (request.DeviceId.HasValue)
             {
                 baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+            }
+
+            if (request.TenantId.HasValue)
+            {
+                baseQuery = baseQuery.Where(x => tenantDeviceIds.Contains(x.Packet.DeviceNumber));
             }
 
             var rows = await baseQuery

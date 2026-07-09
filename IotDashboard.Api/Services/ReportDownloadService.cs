@@ -61,6 +61,7 @@ namespace IotDashboard.Api.Services
         {
             var result = await _statisticService.GetBatteryStatusReport(new BatteryStatusReportRequest
             {
+                TenantId = request.TenantId,
                 DeviceId = request.DeviceId,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc,
@@ -81,6 +82,7 @@ namespace IotDashboard.Api.Services
         {
             var result = await _statisticService.GetSolarStatusReport(new SolarStatusReportRequest
             {
+                TenantId = request.TenantId,
                 DeviceId = request.DeviceId,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc,
@@ -101,6 +103,7 @@ namespace IotDashboard.Api.Services
         {
             var result = await _statisticService.GetGridStatusReport(new GridStatusReportRequest
             {
+                TenantId = request.TenantId,
                 DeviceId = request.DeviceId,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc,
@@ -121,6 +124,7 @@ namespace IotDashboard.Api.Services
         {
             var result = await _statisticService.GetAlarmStatusReport(new AlarmStatusReportRequest
             {
+                TenantId = request.TenantId,
                 DeviceId = request.DeviceId,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc,
@@ -141,6 +145,7 @@ namespace IotDashboard.Api.Services
         {
             var result = await _statisticService.GetEnergyConsumptionReport(new EnergyConsumptionReportRequest
             {
+                TenantId = request.TenantId,
                 DeviceId = request.DeviceId,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc,

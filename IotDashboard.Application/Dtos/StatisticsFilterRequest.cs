@@ -55,6 +55,9 @@ namespace IotDashboard.Application.Dtos
         public ReportFileFormat Format { get; set; } = ReportFileFormat.Excel;
 
         [Range(1, long.MaxValue)]
+        public long? TenantId { get; set; }
+
+        [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
 
         public DateTime? FromUtc { get; set; }
@@ -138,6 +141,9 @@ namespace IotDashboard.Application.Dtos
     public class BatteryStatusReportRequest
     {
         [Range(1, long.MaxValue)]
+        public long? TenantId { get; set; }
+
+        [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
 
         public DateTime? FromUtc { get; set; }
@@ -169,6 +175,9 @@ namespace IotDashboard.Application.Dtos
     public class SolarStatusReportRequest
     {
         [Range(1, long.MaxValue)]
+        public long? TenantId { get; set; }
+
+        [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
 
         public DateTime? FromUtc { get; set; }
@@ -199,6 +208,9 @@ namespace IotDashboard.Application.Dtos
 
     public class GridStatusReportRequest
     {
+        [Range(1, long.MaxValue)]
+        public long? TenantId { get; set; }
+
         [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
 
@@ -234,6 +246,9 @@ namespace IotDashboard.Application.Dtos
 
     public class AlarmStatusReportRequest
     {
+        [Range(1, long.MaxValue)]
+        public long? TenantId { get; set; }
+
         [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
 
@@ -273,6 +288,9 @@ namespace IotDashboard.Application.Dtos
 
     public class EnergyConsumptionReportRequest
     {
+        [Range(1, long.MaxValue)]
+        public long? TenantId { get; set; }
+
         [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
 
