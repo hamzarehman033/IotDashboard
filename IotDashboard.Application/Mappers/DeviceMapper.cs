@@ -26,6 +26,7 @@ namespace IotDashboard.Application.Mappers
                 .ForMember(dest => dest.Region, opt => opt.Ignore())
                 .ForMember(dest => dest.SubRegion, opt => opt.Ignore())
                 .ForMember(dest => dest.Zone, opt => opt.Ignore())
+                .ForMember(dest => dest.DeviceTenants, opt => opt.Ignore())
                 .ForMember(dest => dest.CustomerId, opt => opt.Ignore());
         }
     }

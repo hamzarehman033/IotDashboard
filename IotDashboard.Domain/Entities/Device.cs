@@ -8,6 +8,7 @@ namespace IotDashboard.Domain.Entities
         public long ZoneId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Code { get; set; } = string.Empty;
+        public string? Type { get; set; }
         public string Status { get; set; } = "Active";
         public string Address { get; set; } = string.Empty;
         public string Coordinates { get; set; } = string.Empty;
@@ -44,5 +45,6 @@ namespace IotDashboard.Domain.Entities
         public Location Region { get; set; } = null!;
         public Location SubRegion { get; set; } = null!;
         public Location Zone { get; set; } = null!;
+        public ICollection<DeviceTenant> DeviceTenants { get; set; } = new List<DeviceTenant>();
     }
 }

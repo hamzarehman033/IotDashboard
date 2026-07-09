@@ -11,6 +11,7 @@ namespace IotDashboard.Application.Dtos
         public string ZoneName { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string Code { get; set; } = string.Empty;
+        public string? Type { get; set; }
         public string Status { get; set; } = "Active";
         public string Address { get; set; } = string.Empty;
         public string Coordinates { get; set; } = string.Empty;
@@ -42,5 +43,6 @@ namespace IotDashboard.Application.Dtos
         public int CamerasInstalledCount { get; set; }
         public bool AiEhsInstalled { get; set; }
         public bool AiSecurityInstalled { get; set; }
+        public List<long> TenantIds { get; set; } = new List<long>();
     }
 }

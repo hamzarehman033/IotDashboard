@@ -130,6 +130,7 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.ToTable("Devices").HasKey(x => x.Id);
                 entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.Code).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.Type).HasMaxLength(20);
                 entity.Property(x => x.Status).HasMaxLength(50).IsRequired();
                 entity.Property(x => x.Address).IsRequired();
                 entity.Property(x => x.Coordinates).HasMaxLength(100).IsRequired();
@@ -169,6 +170,26 @@ namespace IotDashboard.Infrastructure.Persistence
                     .HasForeignKey(x => x.ZoneId)
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
+            });
+
+            modelBuilder.Entity<DeviceTenant>(entity =>
+            {
+                entity.ToTable("DeviceTenants");
+                entity.HasKey(x => new { x.DeviceId, x.TenantId });
+
+                entity.HasOne(x => x.Device)
+                    .WithMany(x => x.DeviceTenants)
+                    .HasForeignKey(x => x.DeviceId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(x => x.Tenant)
+                    .WithMany(x => x.DeviceTenants)
+                    .HasForeignKey(x => x.TenantId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasQueryFilter(x =>
+                    x.Device.CustomerId == _currentUserService.GetCustomerId() &&
+                    x.Tenant.CustomerId == _currentUserService.GetCustomerId());
             });
 
             var seedDate = new DateTime(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc);
@@ -232,6 +253,7 @@ namespace IotDashboard.Infrastructure.Persistence
         public DbSet<Location> Locations { get; set; }
         public DbSet<Tenant> Tenants { get; set; }
         public DbSet<Device> Devices { get; set; }
+        public DbSet<DeviceTenant> DeviceTenants { get; set; }
         public DbSet<Lookup> Lookups { get; set; }
 
         public DbSet<TelemetryMessage> TelemetryMessages { get; set; }

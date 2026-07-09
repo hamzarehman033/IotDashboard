@@ -8,5 +8,6 @@ namespace IotDashboard.Domain.Entities
         public string Status { get; set; } = "Active";
 
         public Customer Customer { get; set; } = null!;
+        public ICollection<DeviceTenant> DeviceTenants { get; set; } = new List<DeviceTenant>();
     }
 }

@@ -7,6 +7,7 @@ using IotDashboard.Domain.Entities;
 using IotDashboard.Domain.Interfaces;
 using IotDashboard.Infrastructure.AuditServices;
 using IotDashboard.Infrastructure.ExternalServices.Mqtt;
+using IotDashboard.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using FluentValidation.Results;
@@ -21,12 +22,14 @@ namespace IotDashboard.Application.Handlers.Implimentation
         private readonly IMqttClientService _mqttClientService;
         private readonly ICurrentUserService _currentUserService;
         private readonly IValidator<DeviceInfrastructurePatchVM> _infrastructurePatchValidator;
+        private readonly AppDBContext _dbContext;
 
         public DeviceHandler(
             IDeviceRepository deviceRepository,
             ILocationRepository locationRepository,
             IMqttClientService mqttClientService,
             ICurrentUserService currentUserService,
+            AppDBContext dbContext,
             IValidator<DeviceVM> validator,
             IValidator<DeviceInfrastructurePatchVM> infrastructurePatchValidator,
             FilterValidator<DeviceVM> filterValidator,
@@ -37,6 +40,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
             _locationRepository = locationRepository;
             _mqttClientService = mqttClientService;
             _currentUserService = currentUserService;
+            _dbContext = dbContext;
             _infrastructurePatchValidator = infrastructurePatchValidator;
         }
 
@@ -70,6 +74,25 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 device.ZoneName = locationById.TryGetValue(device.ZoneId, out var zoneName)
                     ? zoneName
                     : string.Empty;
+            }
+
+            var deviceIds = response.Data.PageData.Select(x => x.Id).ToList();
+            var tenantLinks = await _deviceRepository
+                .GetAllAsync()
+                .IgnoreQueryFilters()
+                .Where(x => deviceIds.Contains(x.Id))
+                .SelectMany(x => x.DeviceTenants.Select(dt => new { x.Id, dt.TenantId }))
+                .ToListAsync();
+
+            var tenantMap = tenantLinks
+                .GroupBy(x => x.Id)
+                .ToDictionary(x => x.Key, x => x.Select(y => y.TenantId).Distinct().ToList());
+
+            foreach (var device in response.Data.PageData)
+            {
+                device.TenantIds = tenantMap.TryGetValue(device.Id, out var tenants)
+                    ? tenants
+                    : new List<long>();
             }
 
             return response;
@@ -108,6 +131,14 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 ? zoneName
                 : string.Empty;
 
+            response.Data.TenantIds = await _deviceRepository
+                .GetAllAsync()
+                .IgnoreQueryFilters()
+                .Where(x => x.Id == Id)
+                .SelectMany(x => x.DeviceTenants.Select(dt => dt.TenantId))
+                .Distinct()
+                .ToListAsync();
+
             return response;
         }
 
@@ -119,7 +150,20 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 return ErrorResponse("X-Customer-Id header is required");
             }
 
-            return await base.CreateAsync(model);
+            var response = await base.CreateAsync(model);
+            if (response.Data == null)
+            {
+                return response;
+            }
+
+            var syncResult = await SyncDeviceTenantsAsync(response.Data.Id, model.TenantIds);
+            if (!string.IsNullOrEmpty(syncResult))
+            {
+                return ErrorResponse(syncResult);
+            }
+
+            response.Data.TenantIds = await GetDeviceTenantIdsAsync(response.Data.Id);
+            return response;
         }
 
         public override async Task<Response<DeviceVM>> UpdateAsync(long id, DeviceVM model)
@@ -131,7 +175,20 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 return ErrorResponse("X-Customer-Id header is required");
             }
 
-            return await base.UpdateAsync(id, model);
+            var response = await base.UpdateAsync(id, model);
+            if (response.Data == null)
+            {
+                return response;
+            }
+
+            var syncResult = await SyncDeviceTenantsAsync(id, model.TenantIds);
+            if (!string.IsNullOrEmpty(syncResult))
+            {
+                return ErrorResponse(syncResult);
+            }
+
+            response.Data.TenantIds = await GetDeviceTenantIdsAsync(id);
+            return response;
         }
 
         public async Task<Response<DeviceVM>> PatchInfrastructureByDeviceIdAsync(long deviceId, DeviceInfrastructurePatchVM model)
@@ -280,6 +337,73 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 .Select(x => x.Trim())
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
+        }
+
+        private async Task<List<long>> GetDeviceTenantIdsAsync(long deviceId)
+        {
+            return await _deviceRepository
+                .GetAllAsync()
+                .IgnoreQueryFilters()
+                .Where(x => x.Id == deviceId)
+                .SelectMany(x => x.DeviceTenants.Select(dt => dt.TenantId))
+                .Distinct()
+                .ToListAsync();
+        }
+
+        private async Task<string?> SyncDeviceTenantsAsync(long deviceId, IEnumerable<long>? tenantIds)
+        {
+            var customerId = _currentUserService.GetCustomerId();
+            var requestedTenantIds = (tenantIds ?? Enumerable.Empty<long>())
+                .Where(x => x > 0)
+                .Distinct()
+                .ToList();
+
+            var existingTenantIds = await _deviceRepository
+                .GetAllAsync()
+                .IgnoreQueryFilters()
+                .Where(x => x.Id == deviceId)
+                .SelectMany(x => x.DeviceTenants.Select(dt => dt.TenantId))
+                .Distinct()
+                .ToListAsync();
+
+            var matchedTenantIds = await _dbContext.Tenants
+                .Where(x => x.CustomerId == customerId && requestedTenantIds.Contains(x.Id) && x.IsActive)
+                .Select(x => x.Id)
+                .ToListAsync();
+
+            if (matchedTenantIds.Count != requestedTenantIds.Count)
+            {
+                return "One or more tenant ids are invalid for this customer";
+            }
+
+            var toRemove = existingTenantIds.Except(requestedTenantIds).ToList();
+            var toAdd = requestedTenantIds.Except(existingTenantIds).ToList();
+
+            if (toRemove.Count > 0)
+            {
+                var removeLinks = await _dbContext.DeviceTenants
+                    .Where(x => x.DeviceId == deviceId && toRemove.Contains(x.TenantId))
+                    .ToListAsync();
+                _dbContext.DeviceTenants.RemoveRange(removeLinks);
+            }
+
+            if (toAdd.Count > 0)
+            {
+                var addLinks = toAdd.Select(tenantId => new DeviceTenant
+                {
+                    DeviceId = deviceId,
+                    TenantId = tenantId
+                });
+
+                await _dbContext.DeviceTenants.AddRangeAsync(addLinks);
+            }
+
+            if (toRemove.Count > 0 || toAdd.Count > 0)
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+
+            return null;
         }
 
         private Response<DeviceVM> ErrorResponse(string message)
