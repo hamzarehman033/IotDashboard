@@ -350,4 +350,51 @@ namespace IotDashboard.Application.Dtos
 
         public string Coordinates { get; set; } = string.Empty;
     }
+
+    public class GraphRequest
+    {
+        [Required]
+        public string Timeframe { get; set; } = string.Empty;
+
+        public DateTime? ToUtc { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? DeviceId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? TenantId { get; set; }
+    }
+
+    public class GraphMetaDto
+    {
+        public string Timeframe { get; set; } = string.Empty;
+        public DateTime FromUtc { get; set; }
+        public DateTime ToUtc { get; set; }
+        public string Bucket { get; set; } = string.Empty;
+        public GraphFiltersAppliedDto FiltersApplied { get; set; } = new();
+    }
+
+    public class GraphFiltersAppliedDto
+    {
+        public long? DeviceId { get; set; }
+        public long? TenantId { get; set; }
+    }
+
+    public class GraphPointDto
+    {
+        public DateTime Timestamp { get; set; }
+        public decimal? Value { get; set; }
+    }
+
+    public class GraphSeriesDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public List<GraphPointDto> Points { get; set; } = new();
+    }
+
+    public class GraphResponse
+    {
+        public GraphMetaDto Meta { get; set; } = new();
+        public List<GraphSeriesDto> Series { get; set; } = new();
+    }
 }

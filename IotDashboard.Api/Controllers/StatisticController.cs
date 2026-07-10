@@ -172,6 +172,116 @@ namespace IotDashboard.Api.Controllers
         }
 
         [AllowAnonymous]
+        [HttpPost("graphs/site-total-load")]
+        public async Task<IActionResult> GetSiteTotalLoadGraph([FromBody] GraphRequest request)
+        {
+            var validation = ValidateGraphRequest(request);
+            if (validation is not null)
+            {
+                return validation;
+            }
+
+            try
+            {
+                var result = await _statisticService.GetSiteTotalLoadGraph(request);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [AllowAnonymous]
+        [HttpPost("graphs/grid-voltage")]
+        public async Task<IActionResult> GetGridVoltageGraph([FromBody] GraphRequest request)
+        {
+            var validation = ValidateGraphRequest(request);
+            if (validation is not null)
+            {
+                return validation;
+            }
+
+            try
+            {
+                var result = await _statisticService.GetGridVoltageGraph(request);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [AllowAnonymous]
+        [HttpPost("graphs/tenant-load-trends")]
+        public async Task<IActionResult> GetTenantLoadTrendsGraph([FromBody] GraphRequest request)
+        {
+            var validation = ValidateGraphRequest(request);
+            if (validation is not null)
+            {
+                return validation;
+            }
+
+            if (request.TenantId.HasValue && (request.TenantId.Value < 1 || request.TenantId.Value > 4))
+            {
+                return BadRequest("For tenant-load-trends, TenantId must be between 1 and 4.");
+            }
+
+            try
+            {
+                var result = await _statisticService.GetTenantLoadTrendsGraph(request);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [AllowAnonymous]
+        [HttpPost("graphs/battery-soc")]
+        public async Task<IActionResult> GetBatterySocGraph([FromBody] GraphRequest request)
+        {
+            var validation = ValidateGraphRequest(request);
+            if (validation is not null)
+            {
+                return validation;
+            }
+
+            try
+            {
+                var result = await _statisticService.GetBatterySocGraph(request);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [AllowAnonymous]
+        [HttpPost("graphs/solar-yield")]
+        public async Task<IActionResult> GetSolarYieldGraph([FromBody] GraphRequest request)
+        {
+            var validation = ValidateGraphRequest(request);
+            if (validation is not null)
+            {
+                return validation;
+            }
+
+            try
+            {
+                var result = await _statisticService.GetSolarYieldGraph(request);
+                return Ok(result);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
+
+        [AllowAnonymous]
         [HttpPost("reports/download")]
         public async Task<IActionResult> DownloadReport([FromBody] ReportDownloadRequest request)
         {
@@ -194,6 +304,31 @@ namespace IotDashboard.Api.Controllers
             {
                 return BadRequest(ex.Message);
             }
+        }
+
+        private IActionResult? ValidateGraphRequest(GraphRequest request)
+        {
+            if (request is null)
+            {
+                return BadRequest("Request payload is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Timeframe))
+            {
+                return BadRequest("Timeframe is required and must be one of: 24h, 7days, 30days.");
+            }
+
+            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            {
+                return BadRequest("If provided, DeviceId must be greater than 0.");
+            }
+
+            if (request.TenantId.HasValue && request.TenantId.Value <= 0)
+            {
+                return BadRequest("If provided, TenantId must be greater than 0.");
+            }
+
+            return null;
         }
     }
 }

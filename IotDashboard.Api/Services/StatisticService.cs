@@ -23,6 +23,11 @@ namespace IotDashboard.Api.Services
         Task<GridStatusReportResponse> GetGridStatusReport(GridStatusReportRequest request);
         Task<AlarmStatusReportResponse> GetAlarmStatusReport(AlarmStatusReportRequest request);
         Task<EnergyConsumptionReportResponse> GetEnergyConsumptionReport(EnergyConsumptionReportRequest request);
+        Task<GraphResponse> GetSiteTotalLoadGraph(GraphRequest request);
+        Task<GraphResponse> GetGridVoltageGraph(GraphRequest request);
+        Task<GraphResponse> GetTenantLoadTrendsGraph(GraphRequest request);
+        Task<GraphResponse> GetBatterySocGraph(GraphRequest request);
+        Task<GraphResponse> GetSolarYieldGraph(GraphRequest request);
     }
     public class StatisticService : IStatisticService
     {
@@ -906,6 +911,329 @@ namespace IotDashboard.Api.Services
             }
 
             return (fromUtc, toUtc);
+        }
+
+        #endregion
+
+        #region Graphs
+
+        public async Task<GraphResponse> GetSiteTotalLoadGraph(GraphRequest request)
+        {
+            var (fromUtc, toUtc, bucket, normalizedTimeframe) = ResolveGraphRange(request);
+            var bucketTimeline = BuildBucketTimeline(fromUtc, toUtc, bucket);
+
+            var query = _context.TelecomTelemetryPackets
+                .Where(x => x.ReceivedAtUtc >= fromUtc && x.ReceivedAtUtc <= toUtc);
+            query = ApplyGraphFilters(query, request);
+
+            var rows = await query
+                .Select(x => new { x.ReceivedAtUtc, x.DeviceNumber, x.TotalAcInputPowerW })
+                .ToListAsync();
+
+            var bucketValues = rows
+                .Where(x => x.TotalAcInputPowerW.HasValue)
+                .GroupBy(x => GetBucketStart(x.ReceivedAtUtc, bucket))
+                .ToDictionary(
+                    g => g.Key,
+                    g => (decimal?)g
+                        .GroupBy(x => x.DeviceNumber)
+                        .Select(deviceGroup => deviceGroup.Average(x => (decimal)x.TotalAcInputPowerW!.Value))
+                        .Sum());
+
+            return BuildGraphResponse(request, fromUtc, toUtc, bucket, normalizedTimeframe, new List<GraphSeriesDto>
+            {
+                BuildSeries("site-total-load", bucketTimeline, bucketValues)
+            });
+        }
+
+        public async Task<GraphResponse> GetGridVoltageGraph(GraphRequest request)
+        {
+            var (fromUtc, toUtc, bucket, normalizedTimeframe) = ResolveGraphRange(request);
+            var bucketTimeline = BuildBucketTimeline(fromUtc, toUtc, bucket);
+
+            var query = _context.TelecomTelemetryPackets
+                .Where(x => x.ReceivedAtUtc >= fromUtc && x.ReceivedAtUtc <= toUtc);
+            query = ApplyGraphFilters(query, request);
+
+            var rows = await query
+                .Select(x => new
+                {
+                    x.ReceivedAtUtc,
+                    x.LineAVoltage,
+                    x.LineBVoltage,
+                    x.LineCVoltage
+                })
+                .ToListAsync();
+
+            var l1Values = rows
+                .Where(x => x.LineAVoltage.HasValue)
+                .GroupBy(x => GetBucketStart(x.ReceivedAtUtc, bucket))
+                .ToDictionary(g => g.Key, g => (decimal?)g.Average(x => x.LineAVoltage!.Value));
+
+            var l2Values = rows
+                .Where(x => x.LineBVoltage.HasValue)
+                .GroupBy(x => GetBucketStart(x.ReceivedAtUtc, bucket))
+                .ToDictionary(g => g.Key, g => (decimal?)g.Average(x => x.LineBVoltage!.Value));
+
+            var l3Values = rows
+                .Where(x => x.LineCVoltage.HasValue)
+                .GroupBy(x => GetBucketStart(x.ReceivedAtUtc, bucket))
+                .ToDictionary(g => g.Key, g => (decimal?)g.Average(x => x.LineCVoltage!.Value));
+
+            return BuildGraphResponse(request, fromUtc, toUtc, bucket, normalizedTimeframe, new List<GraphSeriesDto>
+            {
+                BuildSeries("L1", bucketTimeline, l1Values),
+                BuildSeries("L2", bucketTimeline, l2Values),
+                BuildSeries("L3", bucketTimeline, l3Values)
+            });
+        }
+
+        public async Task<GraphResponse> GetTenantLoadTrendsGraph(GraphRequest request)
+        {
+            var (fromUtc, toUtc, bucket, normalizedTimeframe) = ResolveGraphRange(request);
+            var bucketTimeline = BuildBucketTimeline(fromUtc, toUtc, bucket);
+
+            var query = _context.TelecomTelemetryPackets
+                .Where(x => x.ReceivedAtUtc >= fromUtc && x.ReceivedAtUtc <= toUtc);
+
+            if (request.DeviceId.HasValue)
+            {
+                query = query.Where(x => x.DeviceNumber == request.DeviceId.Value);
+            }
+
+            var rows = await query
+                .Select(x => new
+                {
+                    x.ReceivedAtUtc,
+                    x.Tenant1LoadW,
+                    x.Tenant2LoadW,
+                    x.Tenant3LoadW,
+                    x.Tenant4LoadW
+                })
+                .ToListAsync();
+
+            var valuesBySlot = new Dictionary<int, Dictionary<DateTime, decimal?>>()
+            {
+                [1] = rows.Where(x => x.Tenant1LoadW.HasValue)
+                    .GroupBy(x => GetBucketStart(x.ReceivedAtUtc, bucket))
+                    .ToDictionary(g => g.Key, g => (decimal?)g.Average(x => (decimal)x.Tenant1LoadW!.Value)),
+                [2] = rows.Where(x => x.Tenant2LoadW.HasValue)
+                    .GroupBy(x => GetBucketStart(x.ReceivedAtUtc, bucket))
+                    .ToDictionary(g => g.Key, g => (decimal?)g.Average(x => (decimal)x.Tenant2LoadW!.Value)),
+                [3] = rows.Where(x => x.Tenant3LoadW.HasValue)
+                    .GroupBy(x => GetBucketStart(x.ReceivedAtUtc, bucket))
+                    .ToDictionary(g => g.Key, g => (decimal?)g.Average(x => (decimal)x.Tenant3LoadW!.Value)),
+                [4] = rows.Where(x => x.Tenant4LoadW.HasValue)
+                    .GroupBy(x => GetBucketStart(x.ReceivedAtUtc, bucket))
+                    .ToDictionary(g => g.Key, g => (decimal?)g.Average(x => (decimal)x.Tenant4LoadW!.Value))
+            };
+
+            var series = new List<GraphSeriesDto>();
+            var tenantSlots = request.TenantId.HasValue
+                ? new[] { (int)request.TenantId.Value }
+                : new[] { 1, 2, 3, 4 };
+
+            foreach (var slot in tenantSlots)
+            {
+                if (valuesBySlot.TryGetValue(slot, out var values))
+                {
+                    series.Add(BuildSeries($"tenant-{slot}", bucketTimeline, values));
+                }
+            }
+
+            return BuildGraphResponse(request, fromUtc, toUtc, bucket, normalizedTimeframe, series);
+        }
+
+        public async Task<GraphResponse> GetBatterySocGraph(GraphRequest request)
+        {
+            var (fromUtc, toUtc, bucket, normalizedTimeframe) = ResolveGraphRange(request);
+            var bucketTimeline = BuildBucketTimeline(fromUtc, toUtc, bucket);
+
+            var query = _context.TelecomTelemetryPackets
+                .Where(x => x.ReceivedAtUtc >= fromUtc && x.ReceivedAtUtc <= toUtc);
+            query = ApplyGraphFilters(query, request);
+
+            var rows = await query
+                .Select(x => new { x.ReceivedAtUtc, x.BatteryRemainingPercent })
+                .ToListAsync();
+
+            var bucketValues = rows
+                .Where(x => x.BatteryRemainingPercent.HasValue)
+                .GroupBy(x => GetBucketStart(x.ReceivedAtUtc, bucket))
+                .ToDictionary(g => g.Key, g => (decimal?)g.Average(x => (decimal)x.BatteryRemainingPercent!.Value));
+
+            return BuildGraphResponse(request, fromUtc, toUtc, bucket, normalizedTimeframe, new List<GraphSeriesDto>
+            {
+                BuildSeries("battery-soc", bucketTimeline, bucketValues)
+            });
+        }
+
+        public async Task<GraphResponse> GetSolarYieldGraph(GraphRequest request)
+        {
+            var (fromUtc, toUtc, bucket, normalizedTimeframe) = ResolveGraphRange(request);
+            var bucketTimeline = BuildBucketTimeline(fromUtc, toUtc, bucket);
+
+            var query = _context.TelecomTelemetryPackets
+                .Where(x => x.ReceivedAtUtc >= fromUtc && x.ReceivedAtUtc <= toUtc);
+            query = ApplyGraphFilters(query, request);
+
+            var rows = await query
+                .Select(x => new { x.ReceivedAtUtc, x.SolarEnergyTodayWh })
+                .ToListAsync();
+
+            var bucketValues = rows
+                .Where(x => x.SolarEnergyTodayWh.HasValue)
+                .GroupBy(x => GetBucketStart(x.ReceivedAtUtc, bucket))
+                .ToDictionary(g => g.Key, g => (decimal?)g.Average(x => (decimal)x.SolarEnergyTodayWh!.Value));
+
+            return BuildGraphResponse(request, fromUtc, toUtc, bucket, normalizedTimeframe, new List<GraphSeriesDto>
+            {
+                BuildSeries("solar-yield", bucketTimeline, bucketValues)
+            });
+        }
+
+        private static (DateTime FromUtc, DateTime ToUtc, GraphBucket Bucket, string NormalizedTimeframe) ResolveGraphRange(GraphRequest request)
+        {
+            var toUtc = request.ToUtc ?? DateTime.UtcNow;
+            var timeframe = ParseGraphTimeframe(request.Timeframe);
+
+            return timeframe switch
+            {
+                GraphTimeframeOption.TwentyFourHours =>
+                    (GetHourStart(toUtc).AddHours(-23), toUtc, GraphBucket.Hour, "24h"),
+                GraphTimeframeOption.SevenDays =>
+                    (GetDayStart(toUtc).AddDays(-6), toUtc, GraphBucket.Day, "7days"),
+                GraphTimeframeOption.ThirtyDays =>
+                    (GetDayStart(toUtc).AddDays(-29), toUtc, GraphBucket.Day, "30days"),
+                _ => throw new ArgumentOutOfRangeException(nameof(request.Timeframe), request.Timeframe, null)
+            };
+        }
+
+        private static GraphTimeframeOption ParseGraphTimeframe(string timeframe)
+        {
+            return timeframe?.Trim().ToLowerInvariant() switch
+            {
+                "24h" => GraphTimeframeOption.TwentyFourHours,
+                "7days" => GraphTimeframeOption.SevenDays,
+                "30days" => GraphTimeframeOption.ThirtyDays,
+                _ => throw new ArgumentException("Timeframe must be one of: 24h, 7days, 30days.", nameof(timeframe))
+            };
+        }
+
+        private IQueryable<TelecomTelemetryPacket> ApplyGraphFilters(
+            IQueryable<TelecomTelemetryPacket> query,
+            GraphRequest request)
+        {
+            if (request.DeviceId.HasValue)
+            {
+                query = query.Where(x => x.DeviceNumber == request.DeviceId.Value);
+            }
+
+            if (request.TenantId.HasValue)
+            {
+                query = query.Where(x => x.TenantNumber == (int)request.TenantId.Value);
+            }
+
+            return query;
+        }
+
+        private static GraphResponse BuildGraphResponse(
+            GraphRequest request,
+            DateTime fromUtc,
+            DateTime toUtc,
+            GraphBucket bucket,
+            string normalizedTimeframe,
+            List<GraphSeriesDto> series)
+        {
+            return new GraphResponse
+            {
+                Meta = new GraphMetaDto
+                {
+                    Timeframe = normalizedTimeframe,
+                    FromUtc = fromUtc,
+                    ToUtc = toUtc,
+                    Bucket = bucket == GraphBucket.Hour ? "hour" : "day",
+                    FiltersApplied = new GraphFiltersAppliedDto
+                    {
+                        DeviceId = request.DeviceId,
+                        TenantId = request.TenantId
+                    }
+                },
+                Series = series
+            };
+        }
+
+        private static GraphSeriesDto BuildSeries(
+            string name,
+            List<DateTime> bucketTimeline,
+            IReadOnlyDictionary<DateTime, decimal?> valuesByBucket)
+        {
+            return new GraphSeriesDto
+            {
+                Name = name,
+                Points = bucketTimeline.Select(bucket => new GraphPointDto
+                {
+                    Timestamp = bucket,
+                    Value = valuesByBucket.TryGetValue(bucket, out var value) ? value : null
+                }).ToList()
+            };
+        }
+
+        private static List<DateTime> BuildBucketTimeline(DateTime fromUtc, DateTime toUtc, GraphBucket bucket)
+        {
+            var result = new List<DateTime>();
+            var current = GetBucketStart(fromUtc, bucket);
+            var end = GetBucketStart(toUtc, bucket);
+
+            while (current <= end)
+            {
+                result.Add(current);
+                current = bucket == GraphBucket.Hour ? current.AddHours(1) : current.AddDays(1);
+            }
+
+            return result;
+        }
+
+        private static DateTime GetBucketStart(DateTime timestamp, GraphBucket bucket)
+        {
+            return bucket == GraphBucket.Hour ? GetHourStart(timestamp) : GetDayStart(timestamp);
+        }
+
+        private static DateTime GetHourStart(DateTime timestamp)
+        {
+            return new DateTime(
+                timestamp.Year,
+                timestamp.Month,
+                timestamp.Day,
+                timestamp.Hour,
+                0,
+                0,
+                DateTimeKind.Utc);
+        }
+
+        private static DateTime GetDayStart(DateTime timestamp)
+        {
+            return new DateTime(
+                timestamp.Year,
+                timestamp.Month,
+                timestamp.Day,
+                0,
+                0,
+                0,
+                DateTimeKind.Utc);
+        }
+
+        private enum GraphBucket
+        {
+            Hour,
+            Day
+        }
+
+        private enum GraphTimeframeOption
+        {
+            TwentyFourHours,
+            SevenDays,
+            ThirtyDays
         }
 
         #endregion
