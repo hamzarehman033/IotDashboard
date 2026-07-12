@@ -26,6 +26,7 @@ namespace IotDashboard.Application.Dtos
         public string RmsSubscribeTopic { get; set; } = string.Empty;
         public string AiSubscribeTopic { get; set; } = string.Empty;
         public string PublishTopic { get; set; } = string.Empty;
+        public List<string> PowerSources { get; set; } = new();
         public string RectifierBrand { get; set; } = string.Empty;
         public int RectifierQty { get; set; }
         public string RectifierCapacity { get; set; } = string.Empty;

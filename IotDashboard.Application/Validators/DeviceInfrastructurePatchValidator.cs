@@ -5,8 +5,15 @@ namespace IotDashboard.Application.Validators
 {
     public class DeviceInfrastructurePatchValidator : AbstractValidator<DeviceInfrastructurePatchVM>
     {
+        private static readonly string[] AllowedPowerSources = { "CP", "Battery", "Solar", "Generator" };
+
         public DeviceInfrastructurePatchValidator()
         {
+            RuleForEach(x => x.PowerSources)
+                .Must(x => AllowedPowerSources.Contains(x, StringComparer.OrdinalIgnoreCase))
+                .When(x => x.PowerSources is not null)
+                .WithMessage("Power source must be one of: CP, Battery, Solar, Generator");
+
             RuleFor(x => x.RectifierBrand)
                 .MaximumLength(100).WithMessage("Rectifier brand must be at most 100 characters");
 

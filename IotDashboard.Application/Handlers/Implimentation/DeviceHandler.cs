@@ -218,6 +218,12 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 return ErrorResponse("Device not found for the provided device id");
             }
 
+            if (model.PowerSources is not null)
+            {
+                device.PowerSources = model.PowerSources
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
             if (model.RectifierBrand is not null) device.RectifierBrand = model.RectifierBrand;
             if (model.RectifierQty.HasValue) device.RectifierQty = model.RectifierQty.Value;
             if (model.RectifierCapacity is not null) device.RectifierCapacity = model.RectifierCapacity;

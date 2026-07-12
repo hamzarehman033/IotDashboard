@@ -2,6 +2,7 @@ namespace IotDashboard.Application.Dtos
 {
     public class DeviceInfrastructurePatchVM
     {
+        public List<string>? PowerSources { get; set; }
         public string? RectifierBrand { get; set; }
         public int? RectifierQty { get; set; }
         public string? RectifierCapacity { get; set; }
