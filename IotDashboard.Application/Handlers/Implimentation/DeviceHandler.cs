@@ -224,6 +224,10 @@ namespace IotDashboard.Application.Handlers.Implimentation
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
             }
+            if (!device.PowerSources.Any(x => string.Equals(x, "CP", StringComparison.OrdinalIgnoreCase)))
+            {
+                device.PowerSources.Add("CP");
+            }
             if (model.RectifierBrand is not null) device.RectifierBrand = model.RectifierBrand;
             if (model.RectifierQty.HasValue) device.RectifierQty = model.RectifierQty.Value;
             if (model.RectifierCapacity is not null) device.RectifierCapacity = model.RectifierCapacity;
