@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -32,6 +33,30 @@ namespace IotDashboard.Application.Handlers.Implimentation
         {
             _customerRepository = customerRepository;
             _subscriptionRepository = subscriptionRepository;
+        }
+
+        public override async Task<Response<PagerModel<CustomerDetailVM>>> GetAllAsync(int pageSize = 10, int currentPage = 1, IEnumerable<FilterVM> filters = null)
+        {
+            var response = new Response<PagerModel<CustomerDetailVM>> { Status = _error };
+            var user = _httpContextAccessor.HttpContext?.User;
+
+            if (user?.Identity?.IsAuthenticated != true)
+            {
+                response.Message.Add("Authentication is required");
+                return response;
+            }
+
+            var query = _customerRepository.GetAllAsync();
+
+            if (!user.IsInRole(RoleNames.SysAdmin))
+            {
+                var allowedCustomerIds = GetAllowedCustomerIds(user);
+                query = query.Where(x => allowedCustomerIds.Contains(x.Id));
+            }
+
+            response.Data = await query.ToPageAsync<CustomerDetailVM, Customer>(pageSize, currentPage, _mapper);
+            response.Status = _success;
+            return response;
         }
 
         public override async Task<Response<CustomerDetailVM>> CreateAsync(CustomerDetailVM model)
@@ -123,6 +148,23 @@ namespace IotDashboard.Application.Handlers.Implimentation
             cleaned = Regex.Replace(cleaned, "-+", "-").Trim('-');
 
             return string.IsNullOrWhiteSpace(cleaned) ? "customer" : cleaned;
+        }
+
+        private static List<long> GetAllowedCustomerIds(ClaimsPrincipal user)
+        {
+            var customerIds = user.Claims
+                .Where(x => x.Type == "assignedCustomerId")
+                .Select(x => long.TryParse(x.Value, out var id) ? id : 0)
+                .Where(x => x > 0)
+                .ToList();
+
+            var primaryCustomerId = user.Claims.FirstOrDefault(x => x.Type == "customerId");
+            if (long.TryParse(primaryCustomerId?.Value, out var customerId) && customerId > 0)
+            {
+                customerIds.Add(customerId);
+            }
+
+            return customerIds.Distinct().ToList();
         }
      
         public async Task<Response<bool>> SetSubscriptionStatusAsync(long customerId, bool isActive)

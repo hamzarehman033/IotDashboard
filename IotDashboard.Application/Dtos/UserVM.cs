@@ -13,6 +13,7 @@ namespace IotDashboard.Application.Dtos
         public string Email { get; set; }
         public string? PhoneNumber { get; set; }
         public long? CustomerId { get; set; }
+        public List<long> AssignedCustomerIds { get; set; } = new List<long>();
         public List<long> Modules { get; set; } = new List<long>();
         public List<string> Roles { get; set; } = new List<string>();
     }

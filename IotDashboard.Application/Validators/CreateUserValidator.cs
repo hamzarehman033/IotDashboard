@@ -26,6 +26,7 @@ namespace IotDashboard.Application.Validators
             RuleFor(x => x.UserName).NotEmpty().WithMessage(_httpContextAccessor.GetResourceString("validations.required")).CustomAsync(CheckUserName);
             RuleFor(x => x.Role).NotEmpty().WithMessage(_httpContextAccessor.GetResourceString("validations.required"));
             RuleFor(x => x.CustomerId).CustomAsync(ValidateCustomerLinking);
+            RuleFor(x => x.AssignedCustomerIds).CustomAsync(ValidateAssignedCustomers);
             RuleForEach(x => x.Modules)
                 .GreaterThan(0)
                 .WithMessage("Module ids must be greater than 0");
@@ -75,6 +76,37 @@ namespace IotDashboard.Application.Validators
             if (customer == null)
             {
                 context.AddFailure("CustomerId", "Selected customer does not exist");
+            }
+        }
+
+        private async Task ValidateAssignedCustomers(List<long> assignedCustomerIds, ValidationContext<CreateUserVM> context, CancellationToken token)
+        {
+            var role = context.InstanceToValidate.Role;
+            if (role?.Equals(RoleNames.Manager, StringComparison.OrdinalIgnoreCase) != true)
+            {
+                return;
+            }
+
+            var distinctCustomerIds = assignedCustomerIds?
+                .Where(x => x > 0)
+                .Distinct()
+                .ToList() ?? new List<long>();
+
+            if (distinctCustomerIds.Count == 0)
+            {
+                context.AddFailure("AssignedCustomerIds", "AssignedCustomerIds is required for Manager users");
+                return;
+            }
+
+            var existingCustomerIds = await _customerRepository
+                .GetAllAsync(x => distinctCustomerIds.Contains(x.Id))
+                .Select(x => x.Id)
+                .ToListAsync(token);
+
+            var missingCustomerIds = distinctCustomerIds.Except(existingCustomerIds).ToList();
+            if (missingCustomerIds.Count > 0)
+            {
+                context.AddFailure("AssignedCustomerIds", $"Assigned customer ids do not exist: {string.Join(", ", missingCustomerIds)}");
             }
         }
     }

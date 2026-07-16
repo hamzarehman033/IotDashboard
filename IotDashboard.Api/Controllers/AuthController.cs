@@ -68,7 +68,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = RoleNames.SysAdmin)]
+        [Authorize(Roles = $"{RoleNames.SysAdmin},{RoleNames.Manager}")]
         [HttpGet("users")]
         public async Task<IActionResult> GetAllUsers()
         {

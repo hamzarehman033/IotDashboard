@@ -4,6 +4,7 @@ using IotDashboard.Application.Handlers.Interface;
 using IotDashboard.Application.Util;
 using IotDashboard.Domain.Entities;
 using FluentValidation;
+using IotDashboard.Infrastructure.AuditServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -26,13 +27,15 @@ namespace IotDashboard.Application.Handlers.Implimentation
         private readonly IValidator<CreateUserVM> _createUserValidator;
         private readonly IValidator<ChangePasswordVM> _changePasswordVmValidator;
         private readonly IValidator<ResetPasswordVM> _resetPasswordVMValidator;
+        private readonly ICurrentUserService _currentUserService;
         protected readonly string _success;
         protected readonly string _error;
         protected IHttpContextAccessor _httpContextAccessor;
         public UserHandler(UserManager<User> userManager, RoleManager<Role> roleManager, IOptions<JWTConfigs> options,
             IValidator<LoginVM> loginValidator, IValidator<RegisterVM> registerVmValidator, IValidator<CreateUserVM> createUserValidator,
             IValidator<ChangePasswordVM> changePasswordVmValidator, IValidator<ResetPasswordVM> resetPasswordVMValidator,
-            IHttpContextAccessor httpContextAccessor)
+            IHttpContextAccessor httpContextAccessor,
+            ICurrentUserService currentUserService)
         {
             _userManager = userManager;
             _roleManager = roleManager;
@@ -42,6 +45,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
             _createUserValidator = createUserValidator;
             _changePasswordVmValidator = changePasswordVmValidator;
             _resetPasswordVMValidator = resetPasswordVMValidator;
+            _currentUserService = currentUserService;
             _success = httpContextAccessor.GetResourceString("global.status.success");
             _error = httpContextAccessor.GetResourceString("global.status.error");
             _httpContextAccessor = httpContextAccessor;
@@ -65,12 +69,15 @@ namespace IotDashboard.Application.Handlers.Implimentation
                     var roles = await _userManager.GetRolesAsync(user);
                     response.Status = _success;
                     var modules = user.Modules?.Distinct().ToList() ?? new List<long>();
+                    var assignedCustomerIds = GetAssignedCustomerIds(user);
                     response.Data = new TokenVM
                     {
                         Name = user.UserName,
+                        CustomerId = user.CustomerId,
                         Roles = roles.ToList(),
                         Modules = modules,
-                        Token = GenerateToken(user, roles.ToList(), modules),
+                        AssignedCustomerIds = assignedCustomerIds,
+                        Token = GenerateToken(user, roles.ToList(), modules, assignedCustomerIds),
                         RefreshToken = await GetRefreshToken(user),
                     };
                 }
@@ -154,7 +161,8 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 Modules = model.Modules
                     .Where(x => x > 0)
                     .Distinct()
-                    .ToList()
+                    .ToList(),
+                AssignedCustomerIds = GetAssignedCustomerIds(model)
             };
             IdentityResult userCreationResult;
             try
@@ -206,12 +214,15 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 var roles = await _userManager.GetRolesAsync(user);
                 response.Status = _success;
                 var modules = user.Modules?.Distinct().ToList() ?? new List<long>();
+                var assignedCustomerIds = GetAssignedCustomerIds(user);
                 response.Data = new TokenVM
                 {
                     Name = user.UserName,
+                    CustomerId = user.CustomerId,
                     Roles = roles.ToList(),
                     Modules = modules,
-                    Token = GenerateToken(user, roles.ToList(), modules),
+                    AssignedCustomerIds = assignedCustomerIds,
+                    Token = GenerateToken(user, roles.ToList(), modules, assignedCustomerIds),
                     RefreshToken = await GetRefreshToken(user),
                 };
             }
@@ -294,15 +305,15 @@ namespace IotDashboard.Application.Handlers.Implimentation
             Response<List<object>> response = new Response<List<object>> { Status = _error };
             try
             {
-                var customerIdHeader = _httpContextAccessor.HttpContext?.Request?.Headers["X-Customer-Id"].FirstOrDefault();
-                if (!long.TryParse(customerIdHeader, out var customerId) || customerId <= 0)
+                var customerId = _currentUserService.GetCustomerId();
+                if (customerId <= 0)
                 {
-                    response.Message.Add("X-Customer-Id header is required");
+                    response.Message.Add("X-Customer-Id header is required or not assigned to the current user");
                     return response;
                 }
 
                 var users = await _userManager.Users
-                    .Where(x => x.CustomerId == customerId)
+                    .Where(x => x.CustomerId == customerId || x.AssignedCustomerIds.Contains(customerId))
                     .ToListAsync();
                 var usersWithRoles = new List<object>();
 
@@ -316,6 +327,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
                         user.Email,
                         user.PhoneNumber,
                         user.CustomerId,
+                        AssignedCustomerIds = GetAssignedCustomerIds(user),
                         Modules = user.Modules ?? new List<long>(),
                         Roles = roles.ToList()
                     });
@@ -351,6 +363,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 Email = user.Email,
                 PhoneNumber = user.PhoneNumber,
                 CustomerId = user.CustomerId,
+                AssignedCustomerIds = GetAssignedCustomerIds(user),
                 Modules = user.Modules ?? new List<long>(),
                 Roles = roles.ToList()
             };
@@ -380,6 +393,13 @@ namespace IotDashboard.Application.Handlers.Implimentation
             if (model.Modules != null)
             {
                 user.Modules = model.Modules
+                    .Where(x => x > 0)
+                    .Distinct()
+                    .ToList();
+            }
+            if (model.AssignedCustomerIds != null)
+            {
+                user.AssignedCustomerIds = model.AssignedCustomerIds
                     .Where(x => x > 0)
                     .Distinct()
                     .ToList();
@@ -478,7 +498,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
             return token;
         }
 
-        private string GenerateToken(User user, List<string> roles, List<long> modules)
+        private string GenerateToken(User user, List<string> roles, List<long> modules, List<long> assignedCustomerIds)
         {
             var authClaims = new List<Claim>
             {
@@ -497,6 +517,16 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 authClaims.Add(new Claim("module", module.ToString()));
             }
 
+            if (user.CustomerId.HasValue)
+            {
+                authClaims.Add(new Claim("customerId", user.CustomerId.Value.ToString()));
+            }
+
+            foreach (var customerId in assignedCustomerIds)
+            {
+                authClaims.Add(new Claim("assignedCustomerId", customerId.ToString()));
+            }
+
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtConfigs.Key));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -509,6 +539,24 @@ namespace IotDashboard.Application.Handlers.Implimentation
             );
             var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
             return tokenString;
+        }
+
+        private static List<long> GetAssignedCustomerIds(User user)
+        {
+            return (user.AssignedCustomerIds ?? new List<long>())
+                .Where(x => x > 0)
+                .Concat(user.CustomerId.HasValue ? new[] { user.CustomerId.Value } : Array.Empty<long>())
+                .Distinct()
+                .ToList();
+        }
+
+        private static List<long> GetAssignedCustomerIds(CreateUserVM model)
+        {
+            return (model.AssignedCustomerIds ?? new List<long>())
+                .Where(x => x > 0)
+                .Concat(model.CustomerId.HasValue ? new[] { model.CustomerId.Value } : Array.Empty<long>())
+                .Distinct()
+                .ToList();
         }
 
         private static bool HasDuplicateUserNameError(IdentityResult result)
