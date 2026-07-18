@@ -32,7 +32,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = RoleNames.SysAdmin)]
+        [Authorize(Roles = $"{RoleNames.SysAdmin},{RoleNames.Manager},{RoleNames.Admin}")]
         [HttpPost("admin/create-user")]
         public async Task<IActionResult> CreateUser(CreateUserVM model)
         {
@@ -68,7 +68,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = $"{RoleNames.SysAdmin},{RoleNames.Manager}")]
+        [Authorize(Roles = $"{RoleNames.SysAdmin},{RoleNames.Manager},{RoleNames.Admin}")]
         [HttpGet("users")]
         public async Task<IActionResult> GetAllUsers()
         {
@@ -76,7 +76,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = RoleNames.SysAdmin)]
+        [Authorize(Roles = $"{RoleNames.SysAdmin},{RoleNames.Manager},{RoleNames.Admin}")]
         [HttpGet("users/{userId}")]
         public async Task<IActionResult> GetUserById(long userId)
         {
@@ -84,7 +84,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = RoleNames.SysAdmin)]
+        [Authorize(Roles = $"{RoleNames.SysAdmin},{RoleNames.Manager},{RoleNames.Admin}")]
         [HttpPost("users/{userId}")]
         public async Task<IActionResult> UpdateUser(long userId, UpdateUserVM model)
         {
@@ -92,7 +92,7 @@ namespace IotDashboard.Api.Controllers
             return data.ToResponse();
         }
 
-        [Authorize(Roles = RoleNames.SysAdmin)]
+        [Authorize(Roles = $"{RoleNames.SysAdmin},{RoleNames.Manager},{RoleNames.Admin}")]
         [HttpDelete("users/{userId}")]
         public async Task<IActionResult> DeleteUser(long userId)
         {
