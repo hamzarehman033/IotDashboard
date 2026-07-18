@@ -225,7 +225,11 @@ namespace IotDashboard.Api.Services
                 packet?.Tenant3CurrentA,
                 packet?.Tenant4LoadW,
                 packet?.Tenant4CurrentA,
+                packet?.ActivePowerSource,
+                packet?.SignalStrengthDbm,
+                packet?.HybridModeEnabled,
                 packet?.IsCrcValid,
+                packet?.IsExtensionCrcValid,
                 decodedPayload.Error
             };
         }

@@ -12,6 +12,7 @@ namespace IotDashboard.Domain.Entities
         // Primary / Identity
         public long Id { get; set; }
         public string TenantId { get; set; } = string.Empty;
+        public string SiteId { get; set; } = string.Empty;
         public string DeviceId { get; set; } = string.Empty;
         public int TenantNumber { get; set; }
         public int SiteNumber { get; set; }
@@ -24,6 +25,7 @@ namespace IotDashboard.Domain.Entities
         public byte? DeviceType { get; set; }
         public ManufacturerType? Manufacturer { get; set; }
         public ModelType? Model { get; set; }
+        public uint? SiteIdHash { get; set; }
         public uint? DeviceIdHash { get; set; }
         public ushort? PacketSequence { get; set; }
 
@@ -117,7 +119,7 @@ namespace IotDashboard.Domain.Entities
         public ushort? DigitalInputBitmap { get; set; }
         public ushort? RelayOutputBitmap { get; set; }
 
-        // Alarms
+        // Alarms (v1.1 slots 1-3)
         public ushort? Alarm1Code { get; set; }
         public AlarmLevelType? Alarm1Level { get; set; }
         public ushort? Alarm2Code { get; set; }
@@ -126,9 +128,106 @@ namespace IotDashboard.Domain.Entities
         public AlarmLevelType? Alarm3Level { get; set; }
         public uint? AlarmBitmap1 { get; set; }
 
+
+        // Extended payload v1.2 (0xBC+)
+        public uint? DeviceUptimeSeconds { get; set; }
+        public short? SignalStrengthDbm { get; set; }
+        public NetworkType? NetworkType { get; set; }
+        public SimStatusType? SimStatus { get; set; }
+        public uint? DataValidityBitmap { get; set; }
+        public ushort? LastSuccessfulPollAgeSeconds { get; set; }
+        public byte? GatewayCpuUsagePercent { get; set; }
+        public byte? GatewayRamUsagePercent { get; set; }
+        public decimal? GatewayTemperature { get; set; }
+        public ActivePowerSourceType? ActivePowerSource { get; set; }
+        public ushort? PowerSourcePriority { get; set; }
+        public bool? HybridModeEnabled { get; set; }
+
+        public decimal? GensetVoltageL1 { get; set; }
+        public decimal? GensetVoltageL2 { get; set; }
+        public decimal? GensetVoltageL3 { get; set; }
+        public decimal? GensetCurrentL1 { get; set; }
+        public decimal? GensetCurrentL2 { get; set; }
+        public decimal? GensetCurrentL3 { get; set; }
+        public decimal? GensetFrequency { get; set; }
+        public decimal? GensetBatteryVoltage { get; set; }
+        public decimal? GensetFuelConsumptionRateLph { get; set; }
+        public ushort? GensetNextServiceHours { get; set; }
+
+        public ushort? FuelTankCapacityL { get; set; }
+        public FuelSensorStatusType? FuelSensorStatus { get; set; }
+        public decimal? FuelConsumptionRateLph { get; set; }
+        public ushort? FuelRuntimeRemainingMin { get; set; }
+
+        public byte? BatterySoc { get; set; }
+        public ushort? BatteryCycleCount { get; set; }
+        public ushort? BatteryTotalDischargeTimes { get; set; }
+        public uint? BatteryTotalDischargeEnergyWh { get; set; }
+        public ushort? BatteryMaxCellVoltageMv { get; set; }
+        public ushort? BatteryMinCellVoltageMv { get; set; }
+        public decimal? BatteryMaxCellTemp { get; set; }
+        public ushort? BatteryStatusExtended { get; set; }
+        public BatteryContactorStatusType? BatteryContactorStatus { get; set; }
+
+        public byte? RectifierFaultCount { get; set; }
+        public uint? RectifierCapacityTotalW { get; set; }
+        public decimal? RectifierCapacityUsedPercent { get; set; }
+        public decimal? RectifierEfficiencyPercent { get; set; }
+        public RectifierRedundancyStatusType? RectifierRedundancyStatus { get; set; }
+        public decimal? RectifierHighestLoadModulePercent { get; set; }
+
+        public DcLvdStatusType? DcLvd1Status { get; set; }
+        public DcLvdStatusType? DcLvd2Status { get; set; }
+        public uint? DcFuseAlarmBitmap { get; set; }
+        public uint? DcBranchAlarmBitmap { get; set; }
+        public decimal? DcCriticalLoadCurrent { get; set; }
+        public decimal? DcNonCriticalLoadCurrent { get; set; }
+        public DcLvdStatusType? BatteryLvdStatus { get; set; }
+
+        public uint? SolarTotalEnergyLifetimeWh { get; set; }
+        public byte? SolarControllerFaultCount { get; set; }
+        public decimal? SolarBatteryChargeCurrent { get; set; }
+        public SolarMpptStatusType? SolarMpptStatus { get; set; }
+        public uint? SolarDailyPeakPowerW { get; set; }
+        public uint? SolarPanelStringAlarmBitmap { get; set; }
+
+        public decimal? Rectifier1OutputCurrent { get; set; }
+        public decimal? Rectifier2OutputCurrent { get; set; }
+        public decimal? Rectifier3OutputCurrent { get; set; }
+        public decimal? Rectifier4OutputCurrent { get; set; }
+
+        public ushort? Alarm4Code { get; set; }
+        public AlarmLevelType? Alarm4Level { get; set; }
+        public ushort? Alarm5Code { get; set; }
+        public AlarmLevelType? Alarm5Level { get; set; }
+        public ushort? Alarm6Code { get; set; }
+        public AlarmLevelType? Alarm6Level { get; set; }
+
+        public decimal? ExtMainL1Voltage { get; set; }
+        public decimal? ExtMainL2Voltage { get; set; }
+        public decimal? ExtMainL3Voltage { get; set; }
+        public decimal? ExtMainL1Current { get; set; }
+        public decimal? ExtMainL2Current { get; set; }
+        public decimal? ExtMainL3Current { get; set; }
+        public decimal? ExtMainFrequency { get; set; }
+        public uint? ExtMainTotalPowerW { get; set; }
+        public uint? ExtMainTotalEnergyWh { get; set; }
+
+        public decimal? ExtGensetL1Voltage { get; set; }
+        public decimal? ExtGensetL2Voltage { get; set; }
+        public decimal? ExtGensetL3Voltage { get; set; }
+        public decimal? ExtGensetL1Current { get; set; }
+        public decimal? ExtGensetL2Current { get; set; }
+        public decimal? ExtGensetL3Current { get; set; }
+        public decimal? ExtGensetFrequency { get; set; }
+        public uint? ExtGensetTotalPowerW { get; set; }
+        public uint? ExtGensetTotalEnergyWh { get; set; }
+
         // Validation / Metadata
         public ushort? Crc16 { get; set; }
         public bool IsCrcValid { get; set; }
+        public ushort? ExtensionCrc16 { get; set; }
+        public bool? IsExtensionCrcValid { get; set; }
         public DateTime ReceivedAtUtc { get; set; }
         public string? Error { get; set; }
 
@@ -184,9 +283,84 @@ namespace IotDashboard.Domain.Entities
 
     public enum AlarmLevelType : byte
     {
+        None = 0,
         Critical = 1,
         Major = 2,
         Minor = 3,
         Warning = 4
+    }
+
+    public enum NetworkType : byte
+    {
+        Unknown = 0,
+        Ethernet = 1,
+        Network2G = 2,
+        Network3G = 3,
+        Network4G = 4,
+        Network5G = 5,
+        WiFi = 6
+    }
+
+    public enum SimStatusType : byte
+    {
+        Unknown = 0,
+        Missing = 1,
+        Registered = 2,
+        Roaming = 3,
+        NoService = 4,
+        PinLocked = 5
+    }
+
+    public enum ActivePowerSourceType : byte
+    {
+        Unknown = 0,
+        Mains = 1,
+        Generator = 2,
+        Solar = 3,
+        Battery = 4,
+        Hybrid = 5
+    }
+
+    public enum FuelSensorStatusType : byte
+    {
+        Unknown = 0,
+        Normal = 1,
+        Disconnected = 2,
+        Invalid = 3,
+        Stuck = 4
+    }
+
+    public enum BatteryContactorStatusType : byte
+    {
+        Unknown = 0,
+        Open = 1,
+        Closed = 2,
+        Fault = 3
+    }
+
+    public enum RectifierRedundancyStatusType : byte
+    {
+        Unknown = 0,
+        NPlus1Available = 1,
+        NoRedundancy = 2,
+        Overloaded = 3,
+        Fault = 4
+    }
+
+    public enum DcLvdStatusType : byte
+    {
+        Unknown = 0,
+        Connected = 1,
+        Disconnected = 2,
+        Fault = 3
+    }
+
+    public enum SolarMpptStatusType : byte
+    {
+        Unknown = 0,
+        Normal = 1,
+        Fault = 2,
+        Limited = 3,
+        Offline = 4
     }
 }

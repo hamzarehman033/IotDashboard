@@ -1,12 +1,37 @@
 
 ## Context
-Devices publish a fixed 160-byte binary payload (big-endian) to MQTT topic:
+Devices publish a fixed binary MQTT payload (big-endian) to topic:
   telecom/{tenant_id}/{site_id}/{device_id}/telemetry
 
+Source of truth: MQTT Telecom RMS Generic Hex Packet Specification Updated v1.2 Complete.
 
-### 2. TelemetryPacket.cs — decoded model
-A C# record or class with nullable fields for every field in the payload.
-Null means the device sent the invalid sentinel (0xFF / 0xFFFF / 0x7FFF / 0xFFFFFFFF).
+### Packet version
+- Latest only: v1.2 / packet_version 0x03 / 425 bytes (0x1A9).
+- Older 188-byte (v1.1) payloads are not accepted.
+
+### Encoding
+- Big-endian
+- Invalid sentinels: U8=0xFF, U16=0xFFFF, I16=0x7FFF, U32=0xFFFFFFFF → null in model
+- Voltage / current / temp / %x10 / Hz / L/h: value ÷ 10
+- Battery charge/discharge kW: value ÷ 100
+- Power W / energy Wh / minutes / hours / counts: as-is
+
+### CRC
+- CRC-16/MODBUS (init 0xFFFF, poly 0xA001 reflected) — verified against PDF example 0x1DB4 / 0x9A1A
+- Base CRC at 0x9E over bytes 0x00–0x9D → Crc16 / IsCrcValid
+- Extension CRC at 0x1A7 over bytes 0xA0–0x1A6 → ExtensionCrc16 / IsExtensionCrcValid
+- Note: PDF table lists extension_crc at 0x16B; example and length 0x1A9 place it at 0x1A7.
+  Reserved buffer is 0x167–0x1A6 (skip; fill 0x00).
+
+### Implementation map
+- Model: IotDashboard.Domain/Entities/TelecomTelemetryPacket.cs
+- Decoder: IotDashboard.Api/Services/MqttPayloadDecoder.cs
+- Migration: 20260718081521_AddTelecomTelemetryPacketV12Fields
+
+
+### 2. TelecomTelemetryPacket — decoded model
+Nullable fields: null means the device sent the invalid sentinel.
+Topic also supplies TenantId, SiteId, DeviceId (strings).
 
 Fields (offset | length | type | name | scaling):
   0x00 | 4  | U32  | EpochTime              | Unix epoch → DateTimeOffset
@@ -33,73 +58,158 @@ Fields (offset | length | type | name | scaling):
   0x30 | 1  | U8   | MainsFailure           | 0=normal,1=fault
   0x31 | 2  | U16  | DcBusVoltage           | ÷10 → V (null if 0xFFFF)
   0x33 | 2  | I16  | DcLoadCurrent          | ÷10 → A (null if 0x7FFF)
-  0x35 | 4  | U32  | DcLoadPowerW           | W (null if 0xFFFFFFFF)
-  0x39 | 2  | U16  | DcLoadPercent          | ÷10 → % (null if 0xFFFF)
-  0x3B | 4  | U32  | TotalDcEnergyWh        | Wh (null if 0xFFFFFFFF)
+  0x35 | 4  | U32  | DcLoadPowerW           | W
+  0x39 | 2  | U16  | DcLoadPercent          | ÷10 → %
+  0x3B | 4  | U32  | TotalDcEnergyWh        | Wh
   0x3F | 1  | U8   | RectifierInstalledCount|
   0x40 | 1  | U8   | RectifierCommCount     |
-  0x41 | 2  | U16  | RectifierTotalCurrent  | ÷10 → A (null if 0xFFFF)
-  0x43 | 4  | U32  | RectifierTotalDcPowerW | W (null if 0xFFFFFFFF)
+  0x41 | 2  | U16  | RectifierTotalCurrent  | ÷10 → A
+  0x43 | 4  | U32  | RectifierTotalDcPowerW | W
   0x47 | 1  | U8   | RectifierAcFail        | bool
   0x48 | 1  | U8   | RectifierMissing       | bool
-  0x49 | 2  | I16  | RectifierMaxTemperature| ÷10 → °C (null if 0x7FFF)
+  0x49 | 2  | I16  | RectifierMaxTemperature     | ÷10 → °C
   0x4B | 1  | U8   | BatteryStatus          | enum: 0=Unknown,1=Float,2=Boost,3=Discharge,4=Idle
-  0x4C | 2  | U16  | BatteryVoltage         | ÷10 → V (null if 0xFFFF)
-  0x4E | 2  | I16  | BatteryCurrent         | ÷10 → A (null if 0x7FFF)
-  0x50 | 1  | U8   | BatteryRemainingPercent| % (0xFF = null)
-  0x51 | 2  | U16  | BatteryTotalCapacityAh | ÷10 → Ah (null if 0xFFFF)
-  0x53 | 2  | U16  | BatteryRemainingCapacityAh | ÷10 → Ah (null if 0xFFFF)
-  0x55 | 2  | U16  | BatteryBackupTimeMin   | minutes (null if 0xFFFF)
-  0x57 | 2  | I16  | BatteryTemperature     | ÷10 → °C (null if 0x7FFF)
-  0x59 | 1  | U8   | BatterySoh             | % (0xFF = null)
+  0x4C | 2  | U16  | BatteryVoltage         | ÷10 → V
+  0x4E | 2  | I16  | BatteryCurrent         | ÷10 → A
+  0x50 | 1  | U8   | BatteryRemainingPercent| % (null if 0xFF)
+  0x51 | 2  | U16  | BatteryTotalCapacityAh | ÷10 → Ah
+  0x53 | 2  | U16  | BatteryRemainingCapacityAh   | ÷10 → Ah
+  0x55 | 2  | U16  | BatteryBackupTimeMin   | minutes
+  0x57 | 2  | I16  | BatteryTemperature     | ÷10 → °C
+  0x59 | 1  | U8   | BatterySoh             | %
   0x5A | 1  | U8   | BmuOnlineCount         |
-  0x5B | 2  | U16  | BatteryChargeDischargeKw | ÷100 → kW (null if 0xFFFF)
-  0x5D | 1  | U8   | SolarAvailable         | 0xFF=null,0=no,1=yes
-  0x5E | 2  | U16  | SolarVoltage           | ÷10 → V (null if 0xFFFF)
-  0x60 | 2  | I16  | SolarCurrent           | ÷10 → A (null if 0x7FFF)
-  0x62 | 4  | U32  | SolarPowerW            | W (null if 0xFFFFFFFF)
-  0x66 | 4  | U32  | SolarEnergyTodayWh     | Wh (null if 0xFFFFFFFF)
-  0x6A | 1  | U8   | SolarControllerCount   | 0xFF=null
-  0x6B | 1  | U8   | SolarControllerCommFail| 0xFF=null
-  0x6C | 2  | U16  | SolarChargingHours     | hours (null if 0xFFFF)
-  0x6E | 1  | U8   | GensetAvailable        | 0xFF=null,0=no,1=yes
-  0x6F | 1  | U8   | GensetRunning          | 0xFF=null
+  0x5B | 2  | U16  | BatteryChargeDischargeKw | ÷100 → kW
+  0x5D | 1  | U8   | SolarAvailable         | bool
+  0x5E | 2  | U16  | SolarVoltage           | ÷10 → V
+  0x60 | 2  | I16  | SolarCurrent           | ÷10 → A
+  0x62 | 4  | U32  | SolarPowerW            | W
+  0x66 | 4  | U32  | SolarEnergyTodayWh     | Wh
+  0x6A | 1  | U8   | SolarControllerCount   |
+  0x6B | 1  | U8   | SolarControllerCommFail|
+  0x6C | 2  | U16  | SolarChargingHours     | hours
+  0x6E | 1  | U8   | GensetAvailable        | bool
+  0x6F | 1  | U8   | GensetRunning          | bool
   0x70 | 1  | U8   | GensetStartFailure     | bool
-  0x71 | 1  | U8   | GensetControlMode      | enum: 0xFF=null,0=Unknown,1=Auto,2=Manual,3=Disabled
-  0x72 | 2  | U16  | GensetRunHours         | hours (null if 0xFFFF)
-  0x74 | 2  | U16  | GensetStartCount       | (null if 0xFFFF)
-  0x76 | 1  | U8   | FuelLevelPercent       | % (0xFF=null)
-  0x77 | 2  | U16  | FuelVolumeL            | L (null if 0xFFFF)
-  0x79 | 1  | U8   | FuelTheftAlarm         | 0xFF=null
-  0x7A | 1  | U8   | FuelLowAlarm           | 0xFF=null
-  0x7B | 2  | I16  | AmbientTemperature1    | ÷10 → °C (null if 0x7FFF)
-  0x7D | 2  | I16  | AmbientTemperature2    | ÷10 → °C (null if 0x7FFF)
-  0x7F | 2  | U16  | Humidity               | ÷10 → % (null if 0xFFFF)
-  0x81 | 1  | U8   | DoorOpenAlarm          | 0xFF=null
-  0x82 | 1  | U8   | SmokeAlarm             | 0xFF=null
-  0x83 | 1  | U8   | WaterLeakAlarm         | 0xFF=null
-  0x84 | 1  | U8   | MotionAlarm            | 0xFF=null
-  0x85 | 2  | U16  | DigitalInputBitmap     | bitmask DIN1–DIN16
-  0x87 | 2  | U16  | RelayOutputBitmap      | bitmask DO1–DO16
-  0x89 | 2  | U16  | Alarm1Code             |
-  0x8B | 1  | U8   | Alarm1Level            | enum: 1=Critical,2=Major,3=Minor,4=Warning
+  0x71 | 1  | U8   | GensetControlMode      | enum: 0=Unknown,1=Auto,2=Manual,3=Disabled
+  0x72 | 2  | U16  | GensetRunHours         | hours
+  0x74 | 2  | U16  | GensetStartCount       |
+  0x76 | 1  | U8   | FuelLevelPercent       | %
+  0x77 | 2  | U16  | FuelVolumeL            | liters
+  0x79 | 1  | U8   | FuelTheftAlarm         | bool
+  0x7A | 1  | U8   | FuelLowAlarm           | bool
+  0x7B | 2  | I16  | AmbientTemperature1    | ÷10 → °C
+  0x7D | 2  | I16  | AmbientTemperature2    | ÷10 → °C
+  0x7F | 2  | U16  | Humidity               | ÷10 → %
+  0x81 | 1  | U8   | DoorOpenAlarm          | bool
+  0x82 | 1  | U8   | SmokeAlarm             | bool
+  0x83 | 1  | U8   | WaterLeakAlarm         | bool
+  0x84 | 1  | U8   | MotionAlarm            | bool
+  0x85 | 2  | U16  | DigitalInputBitmap     | bitmask
+  0x87 | 2  | U16  | RelayOutputBitmap      | bitmask
+  0x89 | 2  | U16  | Alarm1Code             | 0xFFFF = no alarm → null
+  0x8B | 1  | U8   | Alarm1Level            | 0=None,1=Critical,2=Major,3=Minor,4=Warning
   0x8C | 2  | U16  | Alarm2Code             |
   0x8E | 1  | U8   | Alarm2Level            |
   0x8F | 2  | U16  | Alarm3Code             |
   0x91 | 1  | U8   | Alarm3Level            |
-  0x92 | 4  | U32  | AlarmBitmap1           | [Flags] enum: bit0=MainsFailure,bit1=RectifierAlarm,bit2=BatteryAlarm,bit3=DoorOpen,bit4=GensetRunning,bit5=GensetStartFailure,bit6=SolarCommFail,bit7=FuelLow,bit8=FuelTheft,bit9=TempHigh,bit10=SmokeAlarm,bit11=WaterLeak,bit12=DcUnderVoltage,bit13=DcOverVoltage,bit14=CommFailure
-  0x96 | 8  | —    | Reserved               | skip
-  0x9E | 2  | U16  | Crc16                  | CRC16 of bytes 0x00–0x9D
+  0x92 | 4  | U32  | AlarmBitmap1           | bitmask
+  0x96 | 8  | BYTES| (reserved)             | do not reuse
+  0x9E | 2  | U16  | Crc16                  | CRC16-MODBUS of 0x00–0x9D
 
-Also store these from the MQTT topic (not the payload):
-  string TenantId, SiteId, DeviceId
+Tenant / genset extension — 0xA0 to 0xBB
+  0xA0 | 4  | U32  | GensetPowerW                 | W
+  0xA4 | 4  | U32  | Tenant1LoadW                 | W
+  0xA8 | 2  | I16  | Tenant1CurrentA              | ÷10 → A
+  0xAA | 4  | U32  | Tenant2LoadW                 | W
+  0xAE | 2  | I16  | Tenant2CurrentA              | ÷10 → A
+  0xB0 | 4  | U32  | Tenant3LoadW                 | W
+  0xB4 | 2  | I16  | Tenant3CurrentA              | ÷10 → A
+  0xB6 | 4  | U32  | Tenant4LoadW                 | W
+  0xBA | 2  | I16  | Tenant4CurrentA              | ÷10 → A
 
----
-Rules:
-- Validate payload length == 160, throw ArgumentException if not
-- All reads are big-endian (manually shift bytes — do NOT use BinaryPrimitives which is little-endian by default on x86)
-- Use private helpers: ReadU8, ReadU16, ReadI16, ReadU32
-- Apply null sentinels per field spec above
-- Validate CRC16 using the standard CRC-16/ARC or CRC-16/IBM polynomial (0x8005), compute over bytes[0..157], compare to bytes[158..159]
-- Set a bool IsCrcValid on the packet
-- Parse topic string to extract TenantId, SiteId, DeviceId
+Extended fields — 0xBC to 0x1A8
+  0xBC  | 4  | U32  | DeviceUptimeSeconds          | seconds
+  0xC0  | 2  | I16  | SignalStrengthDbm            | dBm (null if 0x7FFF)
+  0xC2  | 1  | U8   | NetworkType                  | 0=Unknown,1=Ethernet,2=2G,3=3G,4=4G,5=5G,6=WiFi
+  0xC3  | 1  | U8   | SimStatus                    | 0=Unknown,1=Missing,2=Registered,3=Roaming,4=NoService,5=PinLocked
+  0xC4  | 4  | U32  | DataValidityBitmap           | bitmask
+  0xC8  | 2  | U16  | LastSuccessfulPollAgeSeconds | seconds
+  0xCA  | 1  | U8   | GatewayCpuUsagePercent       | %
+  0xCB  | 1  | U8   | GatewayRamUsagePercent       | %
+  0xCC  | 2  | I16  | GatewayTemperature           | ÷10 → °C
+  0xCE  | 1  | U8   | ActivePowerSource            | 0=Unknown,1=Mains,2=Generator,3=Solar,4=Battery,5=Hybrid
+  0xCF  | 2  | U16  | PowerSourcePriority          | encoded
+  0xD1  | 1  | U8   | HybridModeEnabled            | bool
+  0xD2  | 2  | U16  | GensetVoltageL1              | ÷10 → V
+  0xD4  | 2  | U16  | GensetVoltageL2              | ÷10 → V
+  0xD6  | 2  | U16  | GensetVoltageL3              | ÷10 → V
+  0xD8  | 2  | I16  | GensetCurrentL1              | ÷10 → A
+  0xDA  | 2  | I16  | GensetCurrentL2              | ÷10 → A
+  0xDC  | 2  | I16  | GensetCurrentL3              | ÷10 → A
+  0xDE  | 2  | U16  | GensetFrequency              | ÷10 → Hz
+  0xE0  | 2  | U16  | GensetBatteryVoltage         | ÷10 → V
+  0xE2  | 2  | U16  | GensetFuelConsumptionRateLph | ÷10 → L/h
+  0xE4  | 2  | U16  | GensetNextServiceHours       | hours
+  0xE6  | 2  | U16  | FuelTankCapacityL            | liters
+  0xE8  | 1  | U8   | FuelSensorStatus             | 0=Unknown,1=Normal,2=Disconnected,3=Invalid,4=Stuck
+  0xE9  | 2  | U16  | FuelConsumptionRateLph       | ÷10 → L/h
+  0xEB  | 2  | U16  | FuelRuntimeRemainingMin      | minutes
+  0xED  | 1  | U8   | BatterySoc                   | %
+  0xEE  | 2  | U16  | BatteryCycleCount            |
+  0xF0  | 2  | U16  | BatteryTotalDischargeTimes   |
+  0xF2  | 4  | U32  | BatteryTotalDischargeEnergyWh| Wh (display kWh ÷1000)
+  0xF6  | 2  | U16  | BatteryMaxCellVoltageMv      | mV
+  0xF8  | 2  | U16  | BatteryMinCellVoltageMv      | mV
+  0xFA  | 2  | I16  | BatteryMaxCellTemp           | ÷10 → °C
+  0xFC  | 2  | U16  | BatteryStatusExtended        | bitmask
+  0xFE  | 1  | U8   | BatteryContactorStatus       | 0=Unknown,1=Open,2=Closed,3=Fault
+  0xFF  | 1  | U8   | RectifierFaultCount          |
+  0x100 | 4  | U32  | RectifierCapacityTotalW     | W
+  0x104 | 2  | U16  | RectifierCapacityUsedPercent| ÷10 → %
+  0x106 | 2  | U16  | RectifierEfficiencyPercent  | ÷10 → %
+  0x108 | 1  | U8   | RectifierRedundancyStatus    | 0=Unknown,1=NPlus1Available,2=NoRedundancy,3=Overloaded,4=Fault
+  0x109 | 2  | U16  | RectifierHighestLoadModulePercent | ÷10 → %
+  0x10B | 1  | U8   | DcLvd1Status                 | 0=Unknown,1=Connected,2=Disconnected,3=Fault
+  0x10C | 1  | U8   | DcLvd2Status                 | same as DcLvd1Status
+  0x10D | 4  | U32  | DcFuseAlarmBitmap            | bitmask
+  0x111 | 4  | U32  | DcBranchAlarmBitmap          | bitmask
+  0x115 | 2  | I16  | DcCriticalLoadCurrent        | ÷10 → A
+  0x117 | 2  | I16  | DcNonCriticalLoadCurrent     | ÷10 → A
+  0x119 | 1  | U8   | BatteryLvdStatus             | same as DcLvd1Status
+  0x11A | 4  | U32  | SolarTotalEnergyLifetimeWh   | Wh
+  0x11E | 1  | U8   | SolarControllerFaultCount    |
+  0x11F | 2  | I16  | SolarBatteryChargeCurrent    | ÷10 → A
+  0x121 | 1  | U8   | SolarMpptStatus              | 0=Unknown,1=Normal,2=Fault,3=Limited,4=Offline
+  0x122 | 4  | U32  | SolarDailyPeakPowerW         | W
+  0x126 | 4  | U32  | SolarPanelStringAlarmBitmap  | bitmask
+  0x12A | 2  | U16  | Rectifier1OutputCurrent     | ÷10 → A
+  0x12C | 2  | U16  | Rectifier2OutputCurrent     | ÷10 → A
+  0x12E | 2  | U16  | Rectifier3OutputCurrent     | ÷10 → A
+  0x130 | 2  | U16  | Rectifier4OutputCurrent     | ÷10 → A
+  0x132 | 2  | U16  | Alarm4Code                   | 0xFFFF = no alarm → null
+  0x134 | 1  | U8   | Alarm4Level                  |
+  0x135 | 2  | U16  | Alarm5Code                   |
+  0x137 | 1  | U8   | Alarm5Level                  |
+  0x138 | 2  | U16  | Alarm6Code                   |
+  0x13A | 1  | U8   | Alarm6Level                  |
+  0x13B | 2  | U16  | ExtMainL1Voltage             | ÷10 → V
+  0x13D | 2  | U16  | ExtMainL2Voltage             | ÷10 → V
+  0x13F | 2  | U16  | ExtMainL3Voltage             | ÷10 → V
+  0x141 | 2  | I16  | ExtMainL1Current             | ÷10 → A
+  0x143 | 2  | I16  | ExtMainL2Current             | ÷10 → A
+  0x145 | 2  | I16  | ExtMainL3Current             | ÷10 → A
+  0x147 | 2  | U16  | ExtMainFrequency             | ÷10 → Hz
+  0x149 | 4  | U32  | ExtMainTotalPowerW           | W
+  0x14D | 4  | U32  | ExtMainTotalEnergyWh         | Wh
+  0x151 | 2  | U16  | ExtGensetL1Voltage           | ÷10 → V
+  0x153 | 2  | U16  | ExtGensetL2Voltage           | ÷10 → V
+  0x155 | 2  | U16  | ExtGensetL3Voltage           | ÷10 → V
+  0x157 | 2  | I16  | ExtGensetL1Current           | ÷10 → A
+  0x159 | 2  | I16  | ExtGensetL2Current           | ÷10 → A
+  0x15B | 2  | I16  | ExtGensetL3Current           | ÷10 → A
+  0x15D | 2  | U16  | ExtGensetFrequency           | ÷10 → Hz
+  0x15F | 4  | U32  | ExtGensetTotalPowerW         | W
+  0x163 | 4  | U32  | ExtGensetTotalEnergyWh       | Wh
+  0x167 | 64 | BYTES| (future_reserved_buffer)     | 0x167–0x1A6, skip
+  0x1A7 | 2  | U16  | ExtensionCrc16               | CRC16-MODBUS of 0xA0–0x1A6
+)
