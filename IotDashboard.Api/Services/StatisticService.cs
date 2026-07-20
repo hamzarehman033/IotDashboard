@@ -1,5 +1,6 @@
 ﻿using IotDashboard.Application.Dtos;
 using IotDashboard.Domain.Entities;
+using IotDashboard.Infrastructure.AuditServices;
 using IotDashboard.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -32,13 +33,20 @@ namespace IotDashboard.Api.Services
     public class StatisticService : IStatisticService
     {
         private readonly AppDBContext _context;
+        private readonly ICurrentUserService _currentUserService;
 
         #region dashboard
         #region dashboard-summary
-        public StatisticService(AppDBContext dbContext)
+        public StatisticService(AppDBContext dbContext, ICurrentUserService currentUserService)
         {
             _context = dbContext;
+            _currentUserService = currentUserService;
         }
+
+        private long GetActiveCustomerId() => _currentUserService.GetCustomerId();
+
+        private IQueryable<Device> CustomerDevices(long customerId) =>
+            _context.Devices.Where(x => x.CustomerId == customerId);
 
         public async Task<DashboardSummaryResponse> GetSummary(
                 DashboardSummaryRequest request)
@@ -287,25 +295,35 @@ namespace IotDashboard.Api.Services
         public async Task<BatteryStatusReportResponse> GetBatteryStatusReport(BatteryStatusReportRequest request)
         {
             var (fromUtc, toUtc) = ResolveBatteryReportRange(request);
+            var customerId = GetActiveCustomerId();
+            if (customerId <= 0)
+            {
+                return new BatteryStatusReportResponse
+                {
+                    FromUtc = fromUtc,
+                    ToUtc = toUtc,
+                    TotalRecords = 0,
+                    Records = new List<BatteryStatusReportRowDto>()
+                };
+            }
 
             var tenantDeviceIds = new List<long>();
             if (request.TenantId.HasValue)
             {
                 tenantDeviceIds = await _context.DeviceTenants
-                    .Where(x => x.TenantId == request.TenantId.Value)
+                    .Where(x => x.TenantId == request.TenantId.Value && x.Device.CustomerId == customerId)
                     .Select(x => x.DeviceId)
                     .Distinct()
                     .ToListAsync();
             }
 
             var baseQuery = from packet in _context.TelecomTelemetryPackets
-                            join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
-                            from device in deviceJoin.DefaultIfEmpty()
+                            join device in CustomerDevices(customerId) on packet.DeviceNumber equals device.Id
                             where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
                             select new
                             {
                                 Packet = packet,
-                                SiteName = device != null ? device.Name : null
+                                SiteName = device.Name
                             };
 
             if (request.DeviceId.HasValue)
@@ -404,25 +422,35 @@ namespace IotDashboard.Api.Services
         public async Task<SolarStatusReportResponse> GetSolarStatusReport(SolarStatusReportRequest request)
         {
             var (fromUtc, toUtc) = ResolveSolarReportRange(request);
+            var customerId = GetActiveCustomerId();
+            if (customerId <= 0)
+            {
+                return new SolarStatusReportResponse
+                {
+                    FromUtc = fromUtc,
+                    ToUtc = toUtc,
+                    TotalRecords = 0,
+                    Records = new List<SolarStatusReportRowDto>()
+                };
+            }
 
             var tenantDeviceIds = new List<long>();
             if (request.TenantId.HasValue)
             {
                 tenantDeviceIds = await _context.DeviceTenants
-                    .Where(x => x.TenantId == request.TenantId.Value)
+                    .Where(x => x.TenantId == request.TenantId.Value && x.Device.CustomerId == customerId)
                     .Select(x => x.DeviceId)
                     .Distinct()
                     .ToListAsync();
             }
 
             var baseQuery = from packet in _context.TelecomTelemetryPackets
-                            join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
-                            from device in deviceJoin.DefaultIfEmpty()
+                            join device in CustomerDevices(customerId) on packet.DeviceNumber equals device.Id
                             where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
                             select new
                             {
                                 Packet = packet,
-                                SiteName = device != null ? device.Name : null
+                                SiteName = device.Name
                             };
 
             if (request.DeviceId.HasValue)
@@ -523,25 +551,35 @@ namespace IotDashboard.Api.Services
         public async Task<GridStatusReportResponse> GetGridStatusReport(GridStatusReportRequest request)
         {
             var (fromUtc, toUtc) = ResolveGridReportRange(request);
+            var customerId = GetActiveCustomerId();
+            if (customerId <= 0)
+            {
+                return new GridStatusReportResponse
+                {
+                    FromUtc = fromUtc,
+                    ToUtc = toUtc,
+                    TotalRecords = 0,
+                    Records = new List<GridStatusReportRowDto>()
+                };
+            }
 
             var tenantDeviceIds = new List<long>();
             if (request.TenantId.HasValue)
             {
                 tenantDeviceIds = await _context.DeviceTenants
-                    .Where(x => x.TenantId == request.TenantId.Value)
+                    .Where(x => x.TenantId == request.TenantId.Value && x.Device.CustomerId == customerId)
                     .Select(x => x.DeviceId)
                     .Distinct()
                     .ToListAsync();
             }
 
             var baseQuery = from packet in _context.TelecomTelemetryPackets
-                            join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
-                            from device in deviceJoin.DefaultIfEmpty()
+                            join device in CustomerDevices(customerId) on packet.DeviceNumber equals device.Id
                             where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
                             select new
                             {
                                 Packet = packet,
-                                SiteName = device != null ? device.Name : null
+                                SiteName = device.Name
                             };
 
             if (request.DeviceId.HasValue)
@@ -646,25 +684,35 @@ namespace IotDashboard.Api.Services
         public async Task<AlarmStatusReportResponse> GetAlarmStatusReport(AlarmStatusReportRequest request)
         {
             var (fromUtc, toUtc) = ResolveAlarmReportRange(request);
+            var customerId = GetActiveCustomerId();
+            if (customerId <= 0)
+            {
+                return new AlarmStatusReportResponse
+                {
+                    FromUtc = fromUtc,
+                    ToUtc = toUtc,
+                    TotalRecords = 0,
+                    Records = new List<AlarmStatusReportRowDto>()
+                };
+            }
 
             var tenantDeviceIds = new List<long>();
             if (request.TenantId.HasValue)
             {
                 tenantDeviceIds = await _context.DeviceTenants
-                    .Where(x => x.TenantId == request.TenantId.Value)
+                    .Where(x => x.TenantId == request.TenantId.Value && x.Device.CustomerId == customerId)
                     .Select(x => x.DeviceId)
                     .Distinct()
                     .ToListAsync();
             }
 
             var baseQuery = from packet in _context.TelecomTelemetryPackets
-                            join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
-                            from device in deviceJoin.DefaultIfEmpty()
+                            join device in CustomerDevices(customerId) on packet.DeviceNumber equals device.Id
                             where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
                             select new
                             {
                                 Packet = packet,
-                                SiteName = device != null ? device.Name : null
+                                SiteName = device.Name
                             };
 
             if (request.DeviceId.HasValue)
@@ -793,25 +841,35 @@ namespace IotDashboard.Api.Services
         public async Task<EnergyConsumptionReportResponse> GetEnergyConsumptionReport(EnergyConsumptionReportRequest request)
         {
             var (fromUtc, toUtc) = ResolveEnergyConsumptionReportRange(request);
+            var customerId = GetActiveCustomerId();
+            if (customerId <= 0)
+            {
+                return new EnergyConsumptionReportResponse
+                {
+                    FromUtc = fromUtc,
+                    ToUtc = toUtc,
+                    TotalRecords = 0,
+                    Records = new List<EnergyConsumptionReportRowDto>()
+                };
+            }
 
             var tenantDeviceIds = new List<long>();
             if (request.TenantId.HasValue)
             {
                 tenantDeviceIds = await _context.DeviceTenants
-                    .Where(x => x.TenantId == request.TenantId.Value)
+                    .Where(x => x.TenantId == request.TenantId.Value && x.Device.CustomerId == customerId)
                     .Select(x => x.DeviceId)
                     .Distinct()
                     .ToListAsync();
             }
 
             var baseQuery = from packet in _context.TelecomTelemetryPackets
-                            join device in _context.Devices on packet.DeviceNumber equals device.Id into deviceJoin
-                            from device in deviceJoin.DefaultIfEmpty()
+                            join device in CustomerDevices(customerId) on packet.DeviceNumber equals device.Id
                             where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
                             select new
                             {
                                 Packet = packet,
-                                SiteName = device != null ? device.Name : null
+                                SiteName = device.Name
                             };
 
             if (request.DeviceId.HasValue)

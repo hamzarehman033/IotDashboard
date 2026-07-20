@@ -94,7 +94,7 @@ namespace IotDashboard.Application.Validators
 
             if (distinctCustomerIds.Count == 0)
             {
-                context.AddFailure("AssignedCustomerIds", "AssignedCustomerIds is required for Manager users");
+                context.AddFailure("AssignedCustomerIds", "Assigned Customers are required for Manager users");
                 return;
             }
 
