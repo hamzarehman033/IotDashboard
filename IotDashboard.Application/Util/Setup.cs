@@ -115,6 +115,10 @@ namespace IotDashboard.Application.Util
 
                 var roleManager = serviceScope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
                 await SeedDefaultRoles(roleManager);
+
+                var userManager = serviceScope.ServiceProvider.GetRequiredService<UserManager<User>>();
+                var configuration = serviceScope.ServiceProvider.GetRequiredService<IConfiguration>();
+                await SeedSysAdminUser(userManager, configuration);
             }
 
             return app;
@@ -130,6 +134,44 @@ namespace IotDashboard.Application.Util
                 {
                     await roleManager.CreateAsync(new Role { Name = roleName });
                 }
+            }
+        }
+
+        private static async Task SeedSysAdminUser(UserManager<User> userManager, IConfiguration configuration)
+        {
+            var userName = "SysAdmin";
+            var email = "SysAdmin@example.com";
+            var password = "SysAdmin";
+
+            var existingSysAdmins = await userManager.GetUsersInRoleAsync(RoleNames.SysAdmin);
+            var existingUser = await userManager.FindByNameAsync(userName);
+            if (existingSysAdmins.Count > 0 || existingUser != null)
+            {
+                return;
+            }
+
+            var user = new User
+            {
+                UserName = userName,
+                Email = email,
+                EmailConfirmed = true,
+                CustomerId = null,
+                Modules = new List<long>(),
+                AssignedCustomerIds = new List<long>()
+            };
+
+            var createResult = await userManager.CreateAsync(user, password);
+            if (!createResult.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to seed SysAdmin user '{userName}': {string.Join("; ", createResult.Errors.Select(x => x.Description))}");
+            }
+
+            var roleResult = await userManager.AddToRoleAsync(user, RoleNames.SysAdmin);
+            if (!roleResult.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to assign SysAdmin role to '{userName}': {string.Join("; ", roleResult.Errors.Select(x => x.Description))}");
             }
         }
     }
