@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using FluentValidation.Results;
 using IotDashboard.Application.Util;
+using Microsoft.Extensions.Logging;
 
 namespace IotDashboard.Application.Handlers.Implimentation
 {
@@ -23,6 +24,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
         private readonly ICurrentUserService _currentUserService;
         private readonly IValidator<DeviceInfrastructurePatchVM> _infrastructurePatchValidator;
         private readonly AppDBContext _dbContext;
+        private readonly ILogger<DeviceHandler> _logger;
 
         public DeviceHandler(
             IDeviceRepository deviceRepository,
@@ -33,7 +35,8 @@ namespace IotDashboard.Application.Handlers.Implimentation
             IValidator<DeviceVM> validator,
             IValidator<DeviceInfrastructurePatchVM> infrastructurePatchValidator,
             FilterValidator<DeviceVM> filterValidator,
-            IHttpContextAccessor httpContextAccessor)
+            IHttpContextAccessor httpContextAccessor,
+            ILogger<DeviceHandler> logger)
             : base(deviceRepository, DeviceMapper.Mapper.Value, validator, filterValidator, httpContextAccessor)
         {
             _deviceRepository = deviceRepository;
@@ -42,6 +45,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
             _currentUserService = currentUserService;
             _dbContext = dbContext;
             _infrastructurePatchValidator = infrastructurePatchValidator;
+            _logger = logger;
         }
 
         public override async Task<Response<PagerModel<DeviceVM>>> GetAllAsync(int pageSize = 10, int currentPage = 1, IEnumerable<FilterVM> filters = null)
@@ -163,6 +167,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
             }
 
             response.Data.TenantIds = await GetDeviceTenantIdsAsync(response.Data.Id);
+            await TrySyncMqttAsync(response.Data.Id);
             return response;
         }
 
@@ -188,6 +193,38 @@ namespace IotDashboard.Application.Handlers.Implimentation
             }
 
             response.Data.TenantIds = await GetDeviceTenantIdsAsync(id);
+            await TrySyncMqttAsync(id);
+            return response;
+        }
+
+        public override async Task<Response<DeviceVM>> DeleteAsync(long Id)
+        {
+            var customerId = _currentUserService.GetCustomerId();
+            if (customerId <= 0)
+            {
+                return ErrorResponse("X-Customer-Id header is required");
+            }
+
+            var device = await _deviceRepository
+                .GetAllAsync()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == Id);
+
+            var response = await base.DeleteAsync(Id);
+            if (response.Status != _success)
+            {
+                return response;
+            }
+
+            try
+            {
+                await DisconnectMqttAsync(Id, device);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "MQTT disconnect failed after deleting device {DeviceId}", Id);
+            }
+
             return response;
         }
 
@@ -288,17 +325,16 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 return response;
             }
 
-            await _mqttClientService.ConnectAsync(
-                (int)device.Id,
-                device.MqttHost,
-                device.MqttPort,
-                device.MqttClientId,
-                device.MqttUsername,
-                device.MqttPassword,
-                device.UseTls,
-                device.KeepAliveSeconds);
-
-            await _mqttClientService.SubscribeToTopicsAsync((int)device.Id, topics.ToArray());
+            try
+            {
+                await ConnectAndSubscribeAsync(device, topics);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Manual MQTT subscribe failed for device {DeviceId}", deviceId);
+                response.Message.Add($"MQTT subscribe failed: {ex.Message}");
+                return response;
+            }
 
             response.Status = _success;
             response.Data = true;
@@ -318,6 +354,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
 
             var device = await _deviceRepository
                 .GetAllAsync()
+                .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Id == deviceId);
 
             if (device == null)
@@ -326,18 +363,90 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 return response;
             }
 
-            var topics = GetConfiguredTopics(device);
-            if (topics.Count > 0)
+            try
             {
-                await _mqttClientService.UnsubscribeFromTopicsAsync((int)device.Id, topics.ToArray());
+                await DisconnectMqttAsync(deviceId, device);
             }
-
-            await _mqttClientService.DisconnectAsync((int)device.Id);
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Manual MQTT unsubscribe failed for device {DeviceId}", deviceId);
+                response.Message.Add($"MQTT unsubscribe failed: {ex.Message}");
+                return response;
+            }
 
             response.Status = _success;
             response.Data = true;
             response.Message.Add("Device unsubscribed from MQTT topics successfully");
             return response;
+        }
+
+        private async Task TrySyncMqttAsync(long deviceId)
+        {
+            try
+            {
+                var device = await _deviceRepository
+                    .GetAllAsync()
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == deviceId);
+
+                if (device == null)
+                {
+                    return;
+                }
+
+                var topics = GetConfiguredTopics(device);
+
+                // Always reconnect so host/topic/credential updates take effect.
+                await DisconnectMqttAsync(deviceId, device);
+
+                if (!device.IsActive
+                    || string.IsNullOrWhiteSpace(device.MqttHost)
+                    || string.IsNullOrWhiteSpace(device.MqttClientId)
+                    || topics.Count == 0)
+                {
+                    return;
+                }
+
+                await ConnectAndSubscribeAsync(device, topics);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "MQTT sync failed for device {DeviceId}; device save was kept", deviceId);
+            }
+        }
+
+        private async Task ConnectAndSubscribeAsync(Device device, List<string> topics)
+        {
+            await _mqttClientService.ConnectAsync(
+                (int)device.Id,
+                device.MqttHost,
+                device.MqttPort,
+                device.MqttClientId,
+                device.MqttUsername,
+                device.MqttPassword,
+                device.UseTls,
+                device.KeepAliveSeconds);
+
+            await _mqttClientService.SubscribeToTopicsAsync((int)device.Id, topics.ToArray());
+        }
+
+        private async Task DisconnectMqttAsync(long deviceId, Device? device)
+        {
+            var topics = device != null ? GetConfiguredTopics(device) : new List<string>();
+            if (topics.Count > 0 && _mqttClientService.IsConnected((int)deviceId))
+            {
+                try
+                {
+                    await _mqttClientService.UnsubscribeFromTopicsAsync((int)deviceId, topics.ToArray());
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "MQTT unsubscribe failed for device {DeviceId}; continuing disconnect", deviceId);
+                }
+            }
+
+            await _mqttClientService.DisconnectAsync((int)deviceId);
         }
 
         private static List<string> GetConfiguredTopics(Device device)
