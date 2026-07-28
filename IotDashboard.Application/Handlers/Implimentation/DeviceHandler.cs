@@ -167,7 +167,13 @@ namespace IotDashboard.Application.Handlers.Implimentation
             }
 
             response.Data.TenantIds = await GetDeviceTenantIdsAsync(response.Data.Id);
-            await TrySyncMqttAsync(response.Data.Id);
+
+            var mqttError = await SyncMqttAsync(response.Data.Id);
+            if (mqttError != null)
+            {
+                return ErrorResponse(mqttError);
+            }
+
             return response;
         }
 
@@ -193,7 +199,13 @@ namespace IotDashboard.Application.Handlers.Implimentation
             }
 
             response.Data.TenantIds = await GetDeviceTenantIdsAsync(id);
-            await TrySyncMqttAsync(id);
+
+            var mqttError = await SyncMqttAsync(id);
+            if (mqttError != null)
+            {
+                return ErrorResponse(mqttError);
+            }
+
             return response;
         }
 
@@ -380,9 +392,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
             return response;
         }
 
-        private async Task TrySyncMqttAsync(long deviceId)
-        {
-            try
+        private async Task<string?> SyncMqttAsync(long deviceId)
             {
                 var device = await _deviceRepository
                     .GetAllAsync()
@@ -392,7 +402,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
 
                 if (device == null)
                 {
-                    return;
+                    return null;
                 }
 
                 var topics = GetConfiguredTopics(device);
@@ -405,30 +415,65 @@ namespace IotDashboard.Application.Handlers.Implimentation
                     || string.IsNullOrWhiteSpace(device.MqttClientId)
                     || topics.Count == 0)
                 {
-                    return;
+                    return null;
                 }
 
+            try
+            {
                 await ConnectAndSubscribeAsync(device, topics);
+                return null;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "MQTT sync failed for device {DeviceId}; device save was kept", deviceId);
+                _logger.LogError(ex, "MQTT sync failed for device {DeviceId}", deviceId);
+                return $"MQTT connection failed. Check host, port, credentials, TLS, and topics. Details: {ex.Message}";
             }
         }
 
         private async Task ConnectAndSubscribeAsync(Device device, List<string> topics)
         {
-            await _mqttClientService.ConnectAsync(
-                (int)device.Id,
-                device.MqttHost,
-                device.MqttPort,
-                device.MqttClientId,
-                device.MqttUsername,
-                device.MqttPassword,
-                device.UseTls,
-                device.KeepAliveSeconds);
+            var timeout = TimeSpan.FromSeconds(10);
 
-            await _mqttClientService.SubscribeToTopicsAsync((int)device.Id, topics.ToArray());
+            try
+            {
+                // Run connect then subscribe as a single operation and enforce an overall timeout.
+                var combinedTask = Task.Run(async () =>
+                {
+                    await _mqttClientService.ConnectAsync(
+                        (int)device.Id,
+                        device.MqttHost,
+                        device.MqttPort,
+                        device.MqttClientId,
+                        device.MqttUsername,
+                        device.MqttPassword,
+                        device.UseTls,
+                        device.KeepAliveSeconds);
+
+                    await _mqttClientService.SubscribeToTopicsAsync((int)device.Id, topics.ToArray());
+                });
+
+                var timeoutTask = Task.Delay(timeout);
+                var finished = await Task.WhenAny(combinedTask, timeoutTask);
+
+                if (finished != combinedTask)
+                {
+                    _logger.LogError("MQTT connect/subscribe timed out for device {DeviceId} after {TimeoutSeconds}s", device.Id, timeout.TotalSeconds);
+                    throw new TimeoutException($"MQTT connect/subscribe timed out after {timeout.TotalSeconds} seconds");
+                }
+
+                // Ensure any exceptions from the combined task propagate
+                await combinedTask;
+            }
+            catch (TimeoutException)
+            {
+                // Let callers handle timeout specifically
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "MQTT connect/subscribe failed for device {DeviceId}", device.Id);
+                throw;
+            }
         }
 
         private async Task DisconnectMqttAsync(long deviceId, Device? device)
