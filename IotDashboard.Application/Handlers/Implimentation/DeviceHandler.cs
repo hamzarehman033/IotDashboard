@@ -186,11 +186,21 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 return ErrorResponse("X-Customer-Id header is required");
             }
 
-            var response = await base.UpdateAsync(id, model);
-            if (response.Data == null)
+            var device = await _deviceRepository.GetAllAsync().FirstOrDefaultAsync(x => x.Id == id);
+            if (device == null)
             {
-                return response;
+                return ErrorResponse("Device not found for the provided device id");
             }
+
+            _mapper.Map(model, device);
+            device.IsActive = true;
+            var saved = await _deviceRepository.UpdateAsync(device);
+
+            var response = new Response<DeviceVM>
+            {
+                Status = _success,
+                Data = _mapper.Map<DeviceVM>(saved)
+            };
 
             var syncResult = await SyncDeviceTenantsAsync(id, model.TenantIds);
             if (!string.IsNullOrEmpty(syncResult))
