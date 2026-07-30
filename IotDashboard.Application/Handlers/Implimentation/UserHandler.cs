@@ -157,6 +157,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
             { 
                 UserName = model.UserName, 
                 Email = model.Email,
+                PhoneNumber = model.PhoneNumber,
                 CustomerId = model.CustomerId,
                 Modules = model.Modules
                     .Where(x => x > 0)

@@ -6,6 +6,7 @@ using IotDashboard.Domain.Entities;
 using IotDashboard.Domain.Interfaces;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Collections.Generic;
@@ -22,10 +23,18 @@ namespace IotDashboard.Application.Handlers.Implimentation
     {
         private readonly ICustomerRepository _customerRepository;
         private readonly ISubscriptionRepository _subscriptionRepository;
+        private readonly IDeviceRepository _deviceRepository;
+        private readonly ILocationRepository _locationRepository;
+        private readonly ITenantRepository _tenantRepository;
+        private readonly UserManager<User> _userManager;
 
         public CustomerHandler(
             ICustomerRepository customerRepository,
             ISubscriptionRepository subscriptionRepository,
+            IDeviceRepository deviceRepository,
+            ILocationRepository locationRepository,
+            ITenantRepository tenantRepository,
+            UserManager<User> userManager,
             IValidator<CustomerDetailVM> validator,
             FilterValidator<CustomerDetailVM> filterValidator,
             IHttpContextAccessor httpContextAccessor)
@@ -33,6 +42,10 @@ namespace IotDashboard.Application.Handlers.Implimentation
         {
             _customerRepository = customerRepository;
             _subscriptionRepository = subscriptionRepository;
+            _deviceRepository = deviceRepository;
+            _locationRepository = locationRepository;
+            _tenantRepository = tenantRepository;
+            _userManager = userManager;
         }
 
         public override async Task<Response<PagerModel<CustomerDetailVM>>> GetAllAsync(int pageSize = 10, int currentPage = 1, IEnumerable<FilterVM> filters = null)
@@ -110,6 +123,44 @@ namespace IotDashboard.Application.Handlers.Implimentation
             return await base.UpdateAsync(Id, model);
         }
 
+        public override async Task<Response<CustomerDetailVM>> DeleteAsync(long Id)
+        {
+            var response = new Response<CustomerDetailVM> { Status = _error };
+
+            var customer = await _customerRepository.GetByIdAsync(Id);
+            if (customer == null || !customer.IsActive)
+            {
+                response.Message.Add("Customer not found");
+                return response;
+            }
+
+            var hasDevices = await _deviceRepository
+                .GetAllAsync()
+                .IgnoreQueryFilters()
+                .AnyAsync(x => x.CustomerId == Id && x.IsActive);
+
+            var hasLocations = await _locationRepository
+                .GetAllAsync()
+                .IgnoreQueryFilters()
+                .AnyAsync(x => x.CustomerId == Id && x.IsActive);
+
+            var hasTenants = await _tenantRepository
+                .GetAllAsync()
+                .IgnoreQueryFilters()
+                .AnyAsync(x => x.CustomerId == Id && x.IsActive);
+
+            var hasUsers = await _userManager.Users
+                .AnyAsync(x => x.CustomerId == Id || x.AssignedCustomerIds.Contains(Id));
+
+            if (hasDevices || hasLocations || hasTenants || hasUsers)
+            {
+                response.Message.Add("Cannot delete customer because it has related devices, locations, tenants, or users.");
+                return response;
+            }
+
+            return await base.DeleteAsync(Id);
+        }
+
         private async Task<string> GenerateUniqueSlugAsync(string name)
         {
             var baseSlug = ToSlug(name);
@@ -166,7 +217,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
 
             return customerIds.Distinct().ToList();
         }
-     
+
         public async Task<Response<bool>> SetSubscriptionStatusAsync(long customerId, bool isActive)
         {
             Response<bool> response = new Response<bool> { Status = _error };
