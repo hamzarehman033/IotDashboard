@@ -141,7 +141,7 @@ namespace IotDashboard.Application.Util
         {
             var userName = "SysAdmin";
             var email = "SysAdmin@example.com";
-            var password = "SysAdmin";
+            var password = "#SysAdmin0";
 
             var existingSysAdmins = await userManager.GetUsersInRoleAsync(RoleNames.SysAdmin);
             var existingUser = await userManager.FindByNameAsync(userName);
