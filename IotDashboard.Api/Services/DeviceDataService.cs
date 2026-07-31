@@ -62,8 +62,18 @@ namespace IotDashboard.Api.Services
                         decodedPayload,
                         eventArgs.ReceivedAt);
 
-                    // Store in cache
-                    _deviceDataCache.SetDeviceData(eventArgs.DeviceId, eventArgs.Topic, eventArgs.Payload);
+                    var decodedForClients = (object?)decodedPayload.TelemetryPacket ?? decodedPayload.Fields;
+
+                    // Store in cache for subscribe-time snapshot
+                    _deviceDataCache.SetDeviceData(
+                        eventArgs.DeviceId,
+                        eventArgs.Topic,
+                        eventArgs.Payload,
+                        decodedForClients,
+                        decodedPayload.IsHexPayload,
+                        decodedPayload.NormalizedHexPayload,
+                        decodedPayload.Error,
+                        eventArgs.ReceivedAt);
 
                     // Broadcast to all connected clients on device group
                     var groupName = $"device-{eventArgs.DeviceId}";
@@ -74,7 +84,7 @@ namespace IotDashboard.Api.Services
                             DeviceId = eventArgs.DeviceId,
                             Topic = eventArgs.Topic,
                             Payload = eventArgs.Payload,
-                            DecodedPayload = (object?)decodedPayload.TelemetryPacket ?? decodedPayload.Fields,
+                            DecodedPayload = decodedForClients,
                             IsHexPayload = decodedPayload.IsHexPayload,
                             NormalizedHexPayload = decodedPayload.NormalizedHexPayload,
                             DecodingError = decodedPayload.Error,

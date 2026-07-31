@@ -1,3 +1,4 @@
+using IotDashboard.Application.Util;
 using Microsoft.AspNetCore.SignalR;
 
 namespace IotDashboard.Api.Hubs
@@ -7,10 +8,14 @@ namespace IotDashboard.Api.Hubs
     /// </summary>
     public class DeviceDataHub : Hub
     {
+        private readonly IDeviceDataCache _deviceDataCache;
         private readonly ILogger<DeviceDataHub> _logger;
 
-        public DeviceDataHub(ILogger<DeviceDataHub> logger)
+        public DeviceDataHub(
+            IDeviceDataCache deviceDataCache,
+            ILogger<DeviceDataHub> logger)
         {
+            _deviceDataCache = deviceDataCache;
             _logger = logger;
         }
 
@@ -38,6 +43,30 @@ namespace IotDashboard.Api.Hubs
             var groupName = $"device-{deviceId}";
             await Groups.AddToGroupAsync(Context.ConnectionId, groupName);
             _logger.LogInformation($"Client {Context.ConnectionId} subscribed to device {deviceId}");
+
+            var cached = _deviceDataCache.GetDeviceData(deviceId);
+            if (cached != null)
+            {
+                await Clients.Caller.SendAsync(
+                    "DeviceDataReceived",
+                    new
+                    {
+                        DeviceId = cached.DeviceId,
+                        Topic = cached.Topic,
+                        Payload = cached.Payload,
+                        DecodedPayload = cached.DecodedPayload,
+                        IsHexPayload = cached.IsHexPayload,
+                        NormalizedHexPayload = cached.NormalizedHexPayload,
+                        DecodingError = cached.DecodingError,
+                        ReceivedAt = cached.ReceivedAt
+                    });
+
+                _logger.LogInformation(
+                    "Sent cached DeviceDataReceived snapshot to {ConnectionId} for device {DeviceId}",
+                    Context.ConnectionId,
+                    deviceId);
+            }
+
             await Clients.Caller.SendAsync("SubscribeConfirmed", new { DeviceId = deviceId });
         }
 

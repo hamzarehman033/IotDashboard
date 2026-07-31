@@ -6,9 +6,17 @@ namespace IotDashboard.Application.Util
     public interface IDeviceDataCache
     {
         /// <summary>
-        /// Store latest device reading
+        /// Store latest device reading including decoded SignalR fields
         /// </summary>
-        void SetDeviceData(int deviceId, string topic, string payload);
+        void SetDeviceData(
+            int deviceId,
+            string topic,
+            string payload,
+            object? decodedPayload,
+            bool isHexPayload,
+            string? normalizedHexPayload,
+            string? decodingError,
+            DateTime receivedAt);
 
         /// <summary>
         /// Get latest reading for device
@@ -29,6 +37,10 @@ namespace IotDashboard.Application.Util
         public int DeviceId { get; set; }
         public string Topic { get; set; } = string.Empty;
         public string Payload { get; set; } = string.Empty;
+        public object? DecodedPayload { get; set; }
+        public bool IsHexPayload { get; set; }
+        public string? NormalizedHexPayload { get; set; }
+        public string? DecodingError { get; set; }
         public DateTime ReceivedAt { get; set; } = DateTime.UtcNow;
     }
 
@@ -40,7 +52,15 @@ namespace IotDashboard.Application.Util
         private readonly Dictionary<int, DeviceDataPoint> _cache = new();
         private readonly object _lockObject = new();
 
-        public void SetDeviceData(int deviceId, string topic, string payload)
+        public void SetDeviceData(
+            int deviceId,
+            string topic,
+            string payload,
+            object? decodedPayload,
+            bool isHexPayload,
+            string? normalizedHexPayload,
+            string? decodingError,
+            DateTime receivedAt)
         {
             lock (_lockObject)
             {
@@ -49,7 +69,11 @@ namespace IotDashboard.Application.Util
                     DeviceId = deviceId,
                     Topic = topic,
                     Payload = payload,
-                    ReceivedAt = DateTime.UtcNow
+                    DecodedPayload = decodedPayload,
+                    IsHexPayload = isHexPayload,
+                    NormalizedHexPayload = normalizedHexPayload,
+                    DecodingError = decodingError,
+                    ReceivedAt = receivedAt
                 };
             }
         }
@@ -58,7 +82,7 @@ namespace IotDashboard.Application.Util
         {
             lock (_lockObject)
             {
-                return _cache.ContainsKey(deviceId) ? _cache[deviceId] : null;
+                return _cache.TryGetValue(deviceId, out var point) ? point : null;
             }
         }
 
