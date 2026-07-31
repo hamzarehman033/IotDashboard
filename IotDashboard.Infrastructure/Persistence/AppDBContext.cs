@@ -238,6 +238,13 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.HasIndex(x => x.ReceivedAtUtc);
             });
 
+            modelBuilder.Entity<TelecomTelemetryPacket>(entity =>
+            {
+                entity.ToTable("TelecomTelemetryPackets").HasKey(x => x.Id);
+                entity.Property(x => x.ReceivedAtUtc).IsRequired();
+                entity.HasIndex(x => x.ReceivedAtUtc);
+            });
+
             modelBuilder.Entity<DeviceTelemetryLatest>(entity =>
             {
                 entity.ToTable("DeviceTelemetryLatest").HasKey(x => x.Id);

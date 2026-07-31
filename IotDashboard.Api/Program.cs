@@ -52,7 +52,10 @@ builder.Services.AddSingleton<IReportCsvExportService, ReportCsvExportService>()
 builder.Services.AddTransient<IReportDownloadService, ReportDownloadService>();
 builder.Services.AddTransient<IStatisticService, StatisticService>();
 builder.Services.AddScoped<IDeviceDataService, DeviceDataService>();
+builder.Services.Configure<TelemetryRetentionOptions>(
+    builder.Configuration.GetSection(TelemetryRetentionOptions.SectionName));
 builder.Services.AddHostedService<MqttConnectionHostedService>();
+builder.Services.AddHostedService<TelemetryRetentionHostedService>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
