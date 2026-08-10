@@ -72,8 +72,11 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
                     try
                     {
                         var payloadBytes = e.ApplicationMessage.PayloadSegment.ToArray();
-                        var payload = NormalizeIncomingPayload(payloadBytes);
                         var topic = e.ApplicationMessage.Topic;
+                        // Vision topics carry UTF-8 JSON (with base64 image), not hex telecom frames.
+                        var payload = topic.StartsWith("vision", StringComparison.OrdinalIgnoreCase)
+                            ? Encoding.UTF8.GetString(payloadBytes)
+                            : NormalizeIncomingPayload(payloadBytes);
 
                         var eventArgs = new MqttMessageReceivedEventArgs
                         {
