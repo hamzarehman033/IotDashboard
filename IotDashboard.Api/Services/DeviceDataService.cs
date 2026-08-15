@@ -25,6 +25,7 @@ namespace IotDashboard.Api.Services
         private readonly IHubContext<DeviceDataHub> _hubContext;
         private readonly IMqttPayloadDecoder _mqttPayloadDecoder;
         private readonly ITelemetryPersistenceService _telemetryPersistenceService;
+        private readonly IAiVisionPersistenceService _aiVisionPersistenceService;
         private readonly ILogger<DeviceDataService> _logger;
 
         public DeviceDataService(
@@ -33,6 +34,7 @@ namespace IotDashboard.Api.Services
             IHubContext<DeviceDataHub> hubContext,
             IMqttPayloadDecoder mqttPayloadDecoder,
             ITelemetryPersistenceService telemetryPersistenceService,
+            IAiVisionPersistenceService aiVisionPersistenceService,
             ILogger<DeviceDataService> logger)
         {
             _mqttClientService = mqttClientService;
@@ -40,6 +42,7 @@ namespace IotDashboard.Api.Services
             _hubContext = hubContext;
             _mqttPayloadDecoder = mqttPayloadDecoder;
             _telemetryPersistenceService = telemetryPersistenceService;
+            _aiVisionPersistenceService = aiVisionPersistenceService;
             _logger = logger;
         }
 
@@ -50,13 +53,13 @@ namespace IotDashboard.Api.Services
             {
                 try
                 {
-                    if (VisionDetectionParser.IsVisionTopic(eventArgs.Topic))
+                    if (AiVisionBinaryDecoder.IsAiVisionTopic(eventArgs.Topic))
                     {
                         await HandleVisionDetectionAsync(eventArgs);
                         return;
-                    } else {
-                        await HandleRmsTelemetryAsync(eventArgs);
                     }
+
+                    await HandleRmsTelemetryAsync(eventArgs);
 
                 }
                 catch (Exception ex)
@@ -122,39 +125,68 @@ namespace IotDashboard.Api.Services
 
         private async Task HandleVisionDetectionAsync(MqttMessageReceivedEventArgs eventArgs)
         {
-            if (!VisionDetectionParser.TryParseAndValidate(eventArgs.Payload, out var message, out var error)
-                || message?.Image == null)
+            if (!AiVisionBinaryDecoder.TryDecode(eventArgs.PayloadBytes, out var packet, out var error)
+                || packet == null)
             {
-                var preview = eventArgs.Payload.Length <= 80
-                    ? eventArgs.Payload
-                    : eventArgs.Payload[..80];
                 _logger.LogWarning(
-                    "Invalid vision detection for device {DeviceId} on topic {Topic}: {Error}. PayloadPreview={PayloadPreview}",
+                    "Invalid AI Vision binary packet for device {DeviceId} on topic {Topic}: {Error}",
                     eventArgs.DeviceId,
                     eventArgs.Topic,
-                    error ?? "Unknown error",
-                    preview);
+                    error ?? "Unknown error");
                 return;
             }
 
-            var detectionSummary = message.Detections
-                .Select(d => $"{d.ClassName}:{d.Confidence:F2}")
-                .ToList();
+            try
+            {
+                await _aiVisionPersistenceService.PersistAsync(
+                    eventArgs.DeviceId,
+                    eventArgs.Topic,
+                    packet,
+                    eventArgs.ReceivedAt);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex,
+                    "Failed to persist AI Vision packet for device {DeviceId} on topic {Topic}",
+                    eventArgs.DeviceId,
+                    eventArgs.Topic);
+            }
 
+            await BroadcastBinaryVisionAsync(eventArgs, packet);
+        }
+
+        private async Task BroadcastBinaryVisionAsync(MqttMessageReceivedEventArgs eventArgs, AiVisionPacket packet)
+        {
             _logger.LogInformation(
-                "Vision detection received. DeviceId={DeviceId}, Topic={Topic}, EventId={EventId}, SourceDevice={SourceDevice}, Timestamp={Timestamp}, EventType={EventType}, Detections={DetectionCount} [{Detections}], Image={Width}x{Height} ({ByteSize} bytes, {Format})",
+                "AI Vision binary packet. DeviceId={DeviceId}, Topic={Topic}, MessageType={MessageType}, EventType={EventType}, Severity={Severity}, ConfidenceRaw={ConfidenceRaw}, CameraId={CameraId}, ActivityZone={ActivityZone}, EhsCodes=[{EhsCodes}], Image={Width}x{Height} ({ByteSize} bytes)",
                 eventArgs.DeviceId,
                 eventArgs.Topic,
-                message.EventId,
-                message.DeviceId,
-                message.Timestamp,
-                message.EventType,
-                message.Detections.Count,
-                string.Join(", ", detectionSummary),
-                message.Image.Width,
-                message.Image.Height,
-                message.Image.ByteSize,
-                message.Image.Format);
+                packet.MessageType,
+                packet.EventType,
+                packet.Severity,
+                packet.ConfidenceRaw,
+                packet.CameraId,
+                packet.ActivityZone,
+                string.Join(",", packet.EhsCodes),
+                packet.ImageWidth,
+                packet.ImageHeight,
+                packet.ImageSizeBytes);
+
+            object? image = null;
+            if (packet.ImageBytes.Length > 0)
+            {
+                image = new
+                {
+                    Encoding = packet.ImageEncoding,
+                    Format = packet.ImageFormat,
+                    Width = packet.ImageWidth,
+                    Height = packet.ImageHeight,
+                    ByteSize = packet.ImageSizeBytes,
+                    Crc32 = packet.ImageCrc32,
+                    Data = Convert.ToBase64String(packet.ImageBytes)
+                };
+            }
 
             var groupName = $"device-{eventArgs.DeviceId}";
             await _hubContext.Clients.Group(groupName).SendAsync(
@@ -164,33 +196,52 @@ namespace IotDashboard.Api.Services
                     DeviceId = eventArgs.DeviceId,
                     Topic = eventArgs.Topic,
                     ReceivedAt = eventArgs.ReceivedAt,
-                    EventId = message.EventId,
-                    SourceDeviceId = message.DeviceId,
-                    Timestamp = message.Timestamp,
-                    EventType = message.EventType,
-                    Detections = message.Detections.Select(d => new
-                    {
-                        d.ClassId,
-                        d.ClassName,
-                        d.Confidence,
-                        Bbox = d.Bbox == null
-                            ? null
-                            : new { d.Bbox.X1, d.Bbox.Y1, d.Bbox.X2, d.Bbox.Y2 }
-                    }),
-                    Image = new
-                    {
-                        message.Image.Encoding,
-                        message.Image.Format,
-                        message.Image.Width,
-                        message.Image.Height,
-                        message.Image.ByteSize,
-                        message.Image.Sha256,
-                        message.Image.Data
-                    }
+                    PacketSignature = packet.PacketSignature,
+                    ProtocolVersion = packet.ProtocolVersion,
+                    MessageType = packet.MessageType,
+                    HeaderLength = packet.HeaderLength,
+                    Flags = packet.Flags,
+                    PacketSequence = packet.PacketSequence,
+                    TimestampUtc = packet.TimestampUtc,
+                    SiteIdHash = packet.SiteIdHash,
+                    EdgeDeviceIdHash = packet.EdgeDeviceIdHash,
+                    MessageIdHash = packet.MessageIdHash,
+                    EventIdHash = packet.EventIdHash,
+                    CameraId = packet.CameraId,
+                    EventType = packet.EventType,
+                    Severity = packet.Severity,
+                    ConfidenceRaw = packet.ConfidenceRaw,
+                    ActivityZone = packet.ActivityZone,
+                    ObjectCount = packet.ObjectCount,
+                    EhsCodeCount = packet.EhsCodeCount,
+                    EhsCodes = packet.EhsCodes,
+                    SnapshotReasonCode = packet.SnapshotReasonCode,
+                    ActiveCameraCount = packet.ActiveCameraCount,
+                    ConfiguredCameraCount = packet.ConfiguredCameraCount,
+                    DetectionEnabled = packet.DetectionEnabled,
+                    SystemStatus = packet.SystemStatus,
+                    HeartbeatIntervalSec = packet.HeartbeatIntervalSec,
+                    EdgeUptimeSec = packet.EdgeUptimeSec,
+                    CpuUsagePercent = packet.CpuUsagePercent,
+                    RamUsagePercent = packet.RamUsagePercent,
+                    DiskFreePercent = packet.DiskFreePercent,
+                    CameraStatusBitmap = packet.CameraStatusBitmap,
+                    ModelId = packet.ModelId,
+                    ImageFormat = packet.ImageFormat,
+                    ImageEncoding = packet.ImageEncoding,
+                    ImageWidth = packet.ImageWidth,
+                    ImageHeight = packet.ImageHeight,
+                    ImageSizeBytes = packet.ImageSizeBytes,
+                    ImageCrc32 = packet.ImageCrc32,
+                    HeaderCrc16 = packet.HeaderCrc16,
+                    IsHeaderCrcValid = packet.IsHeaderCrcValid,
+                    IsImageCrcValid = packet.IsImageCrcValid,
+                    Image = image
                 });
 
             _logger.LogInformation(
-                "Broadcasted vision detection for device {DeviceId} on topic {Topic} to SignalR clients",
+                "Broadcasted AI Vision message_type={MessageType} for device {DeviceId} on topic {Topic} to SignalR clients",
+                packet.MessageType,
                 eventArgs.DeviceId,
                 eventArgs.Topic);
         }

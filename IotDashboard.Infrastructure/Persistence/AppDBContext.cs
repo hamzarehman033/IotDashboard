@@ -255,6 +255,18 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.Property(x => x.DecodeError).HasMaxLength(2000);
                 entity.HasIndex(x => x.DeviceId).IsUnique();
             });
+
+            modelBuilder.Entity<AiVisionPacket>(entity =>
+            {
+                entity.ToTable("AiVisionPackets").HasKey(x => x.Id);
+                entity.Property(x => x.Topic).HasMaxLength(255).IsRequired();
+                entity.Property(x => x.ReceivedAtUtc).IsRequired();
+                entity.Property(x => x.EhsCodes).HasColumnType("bytea").IsRequired();
+                entity.Property(x => x.ImageBytes).HasColumnType("bytea");
+                entity.HasIndex(x => new { x.DeviceNumber, x.ReceivedAtUtc });
+                entity.HasIndex(x => new { x.DeviceNumber, x.MessageType, x.ReceivedAtUtc });
+                entity.HasIndex(x => new { x.DeviceNumber, x.MessageIdHash, x.PacketSequence }).IsUnique();
+            });
         }
 
         public DbSet<Weather> Weathers { get; set; }
@@ -269,6 +281,7 @@ namespace IotDashboard.Infrastructure.Persistence
         public DbSet<TelemetryMessage> TelemetryMessages { get; set; }
         public DbSet<TelecomTelemetryPacket> TelecomTelemetryPackets { get; set; }
         public DbSet<DeviceTelemetryLatest> DeviceTelemetryLatest { get; set; }
+        public DbSet<AiVisionPacket> AiVisionPackets { get; set; }
 
         public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
         {

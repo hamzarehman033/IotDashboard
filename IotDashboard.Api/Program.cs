@@ -46,6 +46,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IMqttPayloadDecoder, MqttPayloadDecoder>();
 builder.Services.AddSingleton<ITelemetryPersistenceService, TelemetryPersistenceService>();
+builder.Services.AddSingleton<IAiVisionPersistenceService, AiVisionPersistenceService>();
 builder.Services.AddSingleton<IReportExcelExportService, ReportExcelExportService>();
 builder.Services.AddSingleton<IReportPdfExportService, ReportPdfExportService>();
 builder.Services.AddSingleton<IReportCsvExportService, ReportCsvExportService>();

@@ -87,6 +87,7 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
         public int DeviceId { get; set; }
         public string Topic { get; set; } = string.Empty;
         public string Payload { get; set; } = string.Empty;
+        public byte[] PayloadBytes { get; set; } = Array.Empty<byte>();
         public DateTime ReceivedAt { get; set; } = DateTime.UtcNow;
     }
 }

@@ -73,9 +73,10 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
                     {
                         var payloadBytes = e.ApplicationMessage.PayloadSegment.ToArray();
                         var topic = e.ApplicationMessage.Topic;
-                        // Vision topics carry UTF-8 JSON (with base64 image), not hex telecom frames.
-                        var payload = topic.StartsWith("vision", StringComparison.OrdinalIgnoreCase)
-                            ? Encoding.UTF8.GetString(payloadBytes)
+                        var isAiTopic = IsAiVisionTopic(topic);
+
+                        var payload = isAiTopic
+                            ? Convert.ToHexString(payloadBytes)
                             : NormalizeIncomingPayload(payloadBytes);
 
                         var eventArgs = new MqttMessageReceivedEventArgs
@@ -83,6 +84,7 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
                             DeviceId = deviceId,
                             Topic = topic,
                             Payload = payload,
+                            PayloadBytes = payloadBytes,
                             ReceivedAt = DateTime.UtcNow
                         };
 
@@ -321,6 +323,17 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
             }
 
             return Convert.ToHexString(payloadBytes);
+        }
+
+        private static bool IsAiVisionTopic(string topic)
+        {
+            if (string.IsNullOrWhiteSpace(topic))
+            {
+                return false;
+            }
+
+            return topic.EndsWith("/ai", StringComparison.OrdinalIgnoreCase)
+                || topic.StartsWith("aivision", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool TryNormalizeHexString(string value, out string normalized)
