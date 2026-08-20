@@ -16,12 +16,13 @@ namespace IotDashboard.Application.Handlers.Implimentation
         public async Task<Response<List<AiVisionPacketDetailVM>>> GetHistoryByDeviceAsync(
             int deviceNumber,
             byte? messageType,
-            DateTime? fromUtc,
-            DateTime? toUtc,
+            string? timeSpan,
             int limit,
             CancellationToken cancellationToken = default)
         {
             var safeLimit = Math.Clamp(limit <= 0 ? 100 : limit, 1, 1000);
+            var nowUtc = DateTime.UtcNow;
+            var fromUtc = ResolveFromUtc(timeSpan, nowUtc);
 
             var query = _dbContext.AiVisionPackets
                 .AsNoTracking()
@@ -32,15 +33,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 query = query.Where(x => x.MessageType == messageType.Value);
             }
 
-            if (fromUtc.HasValue)
-            {
-                query = query.Where(x => x.ReceivedAtUtc >= fromUtc.Value);
-            }
-
-            if (toUtc.HasValue)
-            {
-                query = query.Where(x => x.ReceivedAtUtc <= toUtc.Value);
-            }
+            query = query.Where(x => x.ReceivedAtUtc >= fromUtc && x.ReceivedAtUtc <= nowUtc);
 
             var data = await query
                 .OrderByDescending(x => x.ReceivedAtUtc)
@@ -52,14 +45,14 @@ namespace IotDashboard.Application.Handlers.Implimentation
                     Topic = x.Topic,
                     ReceivedAtUtc = x.ReceivedAtUtc,
                     PacketSignature = x.PacketSignature,
-                    ProtocolVersion = x.ProtocolVersion,
+                    // ProtocolVersion = x.ProtocolVersion,
                     MessageType = x.MessageType,
-                    HeaderLength = x.HeaderLength,
-                    Flags = x.Flags,
-                    PacketSequence = x.PacketSequence,
+                    // HeaderLength = x.HeaderLength,
+                    // Flags = x.Flags,
+                    // PacketSequence = x.PacketSequence,
                     TimestampUtc = x.TimestampUtc,
                     SiteIdHash = x.SiteIdHash,
-                    EdgeDeviceIdHash = x.EdgeDeviceIdHash,
+                    // EdgeDeviceIdHash = x.EdgeDeviceIdHash,
                     MessageIdHash = x.MessageIdHash,
                     EventIdHash = x.EventIdHash,
                     CameraId = x.CameraId,
@@ -71,8 +64,8 @@ namespace IotDashboard.Application.Handlers.Implimentation
                     EhsCodeCount = x.EhsCodeCount,
                     EhsCodes = x.EhsCodes,
                     SnapshotReasonCode = x.SnapshotReasonCode,
-                    ActiveCameraCount = x.ActiveCameraCount,
-                    ConfiguredCameraCount = x.ConfiguredCameraCount,
+                    // ActiveCameraCount = x.ActiveCameraCount,
+                    // ConfiguredCameraCount = x.ConfiguredCameraCount,
                     DetectionEnabled = x.DetectionEnabled,
                     SystemStatus = x.SystemStatus,
                     HeartbeatIntervalSec = x.HeartbeatIntervalSec,
@@ -84,17 +77,14 @@ namespace IotDashboard.Application.Handlers.Implimentation
                     ModelId = x.ModelId,
                     ImageFormat = x.ImageFormat,
                     ImageEncoding = x.ImageEncoding,
-                    ImageWidth = x.ImageWidth,
-                    ImageHeight = x.ImageHeight,
-                    ImageSizeBytes = x.ImageSizeBytes,
+                    // ImageWidth = x.ImageWidth,
+                    // ImageHeight = x.ImageHeight,
+                    // ImageSizeBytes = x.ImageSizeBytes,
                     ImageCrc32 = x.ImageCrc32,
-                    HeaderCrc16 = x.HeaderCrc16,
-                    IsHeaderCrcValid = x.IsHeaderCrcValid,
+                    // HeaderCrc16 = x.HeaderCrc16,
+                    // IsHeaderCrcValid = x.IsHeaderCrcValid,
                     IsImageCrcValid = x.IsImageCrcValid,
-                    HasImage = x.ImageBytes != null && x.ImageBytes.Length > 0,
-                    ImageBase64 = x.ImageBytes != null && x.ImageBytes.Length > 0
-                    ? Convert.ToBase64String(x.ImageBytes)
-                    : null
+                    HasImage = x.ImageBytes != null && x.ImageBytes.Length > 0
                 })
                 .ToListAsync(cancellationToken);
 
@@ -102,6 +92,54 @@ namespace IotDashboard.Application.Handlers.Implimentation
             {
                 Status = "Success",
                 Data = data
+            };
+        }
+
+        private static DateTime ResolveFromUtc(string? timeSpan, DateTime nowUtc)
+        {
+            var span = timeSpan?.Trim().ToLowerInvariant();
+
+            return span switch
+            {
+                "1w" => nowUtc.AddDays(-7),
+                "1m" => nowUtc.AddDays(-30),
+                _ => nowUtc.AddDays(-1)
+            };
+        }
+
+        public async Task<Response<string?>> GetVisionPacketDetails(
+            long id,
+            CancellationToken cancellationToken = default)
+        {
+            var imageBytes = await _dbContext.AiVisionPackets
+                .AsNoTracking()
+                .Where(x => x.Id == id)
+                .Select(x => x.ImageBytes)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (imageBytes == null)
+            {
+                return new Response<string?>
+                {
+                    Status = "Error",
+                    Message = new List<string> { "Packet not found or image is not available." },
+                    Data = null
+                };
+            }
+
+            if (imageBytes.Length == 0)
+            {
+                return new Response<string?>
+                {
+                    Status = "Success",
+                    Data = null
+                };
+            }
+
+            return new Response<string?>
+            {
+                Status = "Success",
+                Data = Convert.ToBase64String(imageBytes)
             };
         }
 

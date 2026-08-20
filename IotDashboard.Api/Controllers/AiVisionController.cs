@@ -21,19 +21,26 @@ namespace IotDashboard.Api.Controllers
         public async Task<IActionResult> GetHistoryByDevice(
             int deviceNumber,
             [FromQuery] byte? messageType,
-            [FromQuery] DateTime? fromUtc,
-            [FromQuery] DateTime? toUtc,
+            [FromQuery] string? timeSpan = "1d",
             [FromQuery] int limit = 100,
             CancellationToken cancellationToken = default)
         {
             var res = await _aiVisionHandler.GetHistoryByDeviceAsync(
                 deviceNumber,
                 messageType,
-                fromUtc,
-                toUtc,
+                timeSpan,
                 limit,
                 cancellationToken);
 
+            return res.ToResponse();
+        }
+
+        [HttpGet("packet/{id:long}/vision-packet-details")]
+        public async Task<IActionResult> GetVisionPacketDetails(
+            long id,
+            CancellationToken cancellationToken = default)
+        {
+            var res = await _aiVisionHandler.GetVisionPacketDetails(id, cancellationToken);
             return res.ToResponse();
         }
     }

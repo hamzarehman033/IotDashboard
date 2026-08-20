@@ -7,9 +7,12 @@ namespace IotDashboard.Application.Handlers.Interface
         Task<Response<List<AiVisionPacketDetailVM>>> GetHistoryByDeviceAsync(
             int deviceNumber,
             byte? messageType,
-            DateTime? fromUtc,
-            DateTime? toUtc,
+            string? timeSpan,
             int limit,
+            CancellationToken cancellationToken = default);
+
+        Task<Response<string?>> GetVisionPacketDetails(
+            long id,
             CancellationToken cancellationToken = default);
     }
 }
