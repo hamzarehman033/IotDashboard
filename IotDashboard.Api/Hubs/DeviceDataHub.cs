@@ -8,6 +8,8 @@ namespace IotDashboard.Api.Hubs
     /// </summary>
     public class DeviceDataHub : Hub
     {
+        private static readonly TimeSpan SnapshotMaxAge = TimeSpan.FromMinutes(10);
+
         private readonly IDeviceDataCache _deviceDataCache;
         private readonly ILogger<DeviceDataHub> _logger;
 
@@ -45,7 +47,7 @@ namespace IotDashboard.Api.Hubs
             _logger.LogInformation($"Client {Context.ConnectionId} subscribed to device {deviceId}");
 
             var cached = _deviceDataCache.GetDeviceData(deviceId);
-            if (cached != null)
+            if (cached != null && DateTime.UtcNow - cached.ReceivedAt <= SnapshotMaxAge)
             {
                 await Clients.Caller.SendAsync(
                     "DeviceDataReceived",
