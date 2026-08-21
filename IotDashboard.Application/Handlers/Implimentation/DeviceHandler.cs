@@ -192,17 +192,18 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 return ErrorResponse("Device not found for the provided device id");
             }
 
-            _mapper.Map(model, device);
+            var updateModel = _mapper.Map<DeviceUpdateVM>(model);
+            _mapper.Map(updateModel, device);
             device.IsActive = true;
-            var saved = await _deviceRepository.UpdateAsync(device);
+            await _dbContext.SaveChangesAsync();
 
             var response = new Response<DeviceVM>
             {
                 Status = _success,
-                Data = _mapper.Map<DeviceVM>(saved)
+                Data = _mapper.Map<DeviceVM>(device)
             };
 
-            var syncResult = await SyncDeviceTenantsAsync(id, model.TenantIds);
+            var syncResult = await SyncDeviceTenantsAsync(id, updateModel.TenantIds);
             if (!string.IsNullOrEmpty(syncResult))
             {
                 return ErrorResponse(syncResult);

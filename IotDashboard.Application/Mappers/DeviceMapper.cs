@@ -21,6 +21,36 @@ namespace IotDashboard.Application.Mappers
         {
             CreateMap<Device, DeviceVM>();
 
+            CreateMap<DeviceVM, DeviceUpdateVM>();
+
+            CreateMap<DeviceUpdateVM, Device>()
+                .ForMember(dest => dest.Id, opt => opt.Ignore())
+                .ForMember(dest => dest.IsActive, opt => opt.Ignore())
+                .ForMember(dest => dest.CustomerId, opt => opt.Ignore())
+                .ForMember(dest => dest.Customer, opt => opt.Ignore())
+                .ForMember(dest => dest.Region, opt => opt.Ignore())
+                .ForMember(dest => dest.SubRegion, opt => opt.Ignore())
+                .ForMember(dest => dest.Zone, opt => opt.Ignore())
+                .ForMember(dest => dest.DeviceTenants, opt => opt.Ignore())
+                .ForMember(dest => dest.PowerSources, opt => opt.Ignore())
+                .ForMember(dest => dest.RectifierBrand, opt => opt.Ignore())
+                .ForMember(dest => dest.RectifierQty, opt => opt.Ignore())
+                .ForMember(dest => dest.RectifierCapacity, opt => opt.Ignore())
+                .ForMember(dest => dest.BatteryBrand, opt => opt.Ignore())
+                .ForMember(dest => dest.BatteryQty, opt => opt.Ignore())
+                .ForMember(dest => dest.BatteryCapacity, opt => opt.Ignore())
+                .ForMember(dest => dest.SolarBrand, opt => opt.Ignore())
+                .ForMember(dest => dest.SolarQty, opt => opt.Ignore())
+                .ForMember(dest => dest.SolarCapacity, opt => opt.Ignore())
+                .ForMember(dest => dest.GeneratorBrand, opt => opt.Ignore())
+                .ForMember(dest => dest.GeneratorQty, opt => opt.Ignore())
+                .ForMember(dest => dest.GeneratorCapacity, opt => opt.Ignore())
+                .ForMember(dest => dest.RmsSerialNumber, opt => opt.Ignore())
+                .ForMember(dest => dest.SimCardNumber, opt => opt.Ignore())
+                .ForMember(dest => dest.CamerasInstalledCount, opt => opt.Ignore())
+                .ForMember(dest => dest.AiEhsInstalled, opt => opt.Ignore())
+                .ForMember(dest => dest.AiSecurityInstalled, opt => opt.Ignore());
+
             CreateMap<DeviceVM, Device>()
                 .ForMember(dest => dest.Customer, opt => opt.Ignore())
                 .ForMember(dest => dest.Region, opt => opt.Ignore())
