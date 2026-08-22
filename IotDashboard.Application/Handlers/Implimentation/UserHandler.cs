@@ -50,7 +50,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
             _error = httpContextAccessor.GetResourceString("global.status.error");
             _httpContextAccessor = httpContextAccessor;
         }
-        public async Task<Response<TokenVM>> GetToken(LoginVM Model)
+        public async Task<Response<TokenVM>> LoginAsync(LoginVM Model)
         {
             Response<TokenVM> response = new Response<TokenVM> { Status = _error };
             var validationResult = await _loginValidator.ValidateAsync(Model);

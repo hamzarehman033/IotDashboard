@@ -9,7 +9,7 @@ namespace IotDashboard.Application.Handlers.Interface
 {
     public interface IUserHandler
     {
-        Task<Response<TokenVM>> GetToken(LoginVM Model);
+        Task<Response<TokenVM>> LoginAsync(LoginVM Model);
         Task<Response<TokenVM>> GetTokenByRefresh(string refreshToken);
         Task<Response<string>> Register(RegisterVM model);
         Task<Response<string>> CreateUser(CreateUserVM model);

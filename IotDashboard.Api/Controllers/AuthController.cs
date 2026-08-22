@@ -18,10 +18,10 @@ namespace IotDashboard.Api.Controllers
             _userHandler = userHandler;
         }
 
-        [HttpPost("token")]
-        public async Task<IActionResult> Token(LoginVM model)
+        [HttpPost("login")]
+        public async Task<IActionResult> Login(LoginVM model)
         {
-            var data = await _userHandler.GetToken(model);
+            var data = await _userHandler.LoginAsync(model);
             return data.ToResponse();
         }
 
