@@ -302,7 +302,25 @@ namespace IotDashboard.Application.Handlers.Implimentation
             if (model.GeneratorCapacity is not null) device.GeneratorCapacity = model.GeneratorCapacity;
             if (model.RmsSerialNumber is not null) device.RmsSerialNumber = model.RmsSerialNumber;
             if (model.SimCardNumber is not null) device.SimCardNumber = model.SimCardNumber;
-            if (model.CamerasInstalledCount.HasValue) device.CamerasInstalledCount = model.CamerasInstalledCount.Value;
+            if (model.Cameras is not null)
+            {
+                device.Cameras = model.Cameras;
+                device.CamerasInstalledCount = model.Cameras.Count;
+            }
+            else if (model.CamerasInstalledCount.HasValue)
+            {
+                device.CamerasInstalledCount = model.CamerasInstalledCount.Value;
+                while (device.Cameras.Count < device.CamerasInstalledCount)
+                {
+                    var index = (byte)device.Cameras.Count;
+                    device.Cameras.Add(new CameraItem { CameraIndex = index, Name = $"Camera {index}", IsEnabled = true });
+                }
+
+                if (device.Cameras.Count > device.CamerasInstalledCount)
+                {
+                    device.Cameras = device.Cameras.Take(device.CamerasInstalledCount).ToList();
+                }
+            }
             if (model.AiEhsInstalled.HasValue) device.AiEhsInstalled = model.AiEhsInstalled.Value;
             if (model.AiSecurityInstalled.HasValue) device.AiSecurityInstalled = model.AiSecurityInstalled.Value;
 

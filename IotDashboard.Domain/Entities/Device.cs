@@ -39,6 +39,7 @@ namespace IotDashboard.Domain.Entities
         public string RmsSerialNumber { get; set; } = string.Empty;
         public string SimCardNumber { get; set; } = string.Empty;
         public int CamerasInstalledCount { get; set; }
+        public List<CameraItem> Cameras { get; set; } = new();
         public bool AiEhsInstalled { get; set; }
         public bool AiSecurityInstalled { get; set; }
 

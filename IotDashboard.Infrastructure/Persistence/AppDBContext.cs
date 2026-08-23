@@ -155,6 +155,9 @@ namespace IotDashboard.Infrastructure.Persistence
                 entity.Property(x => x.GeneratorCapacity).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.RmsSerialNumber).HasMaxLength(100).IsRequired();
                 entity.Property(x => x.SimCardNumber).HasMaxLength(50).IsRequired();
+                entity.Property(x => x.Cameras)
+                    .HasColumnType("jsonb")
+                    .HasDefaultValueSql("'[]'::jsonb");
                 entity.HasIndex(x => new { x.CustomerId, x.Code }).IsUnique();
                 entity.HasOne(x => x.Customer)
                     .WithMany()

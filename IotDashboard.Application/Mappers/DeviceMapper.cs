@@ -48,6 +48,7 @@ namespace IotDashboard.Application.Mappers
                 .ForMember(dest => dest.RmsSerialNumber, opt => opt.Ignore())
                 .ForMember(dest => dest.SimCardNumber, opt => opt.Ignore())
                 .ForMember(dest => dest.CamerasInstalledCount, opt => opt.Ignore())
+                .ForMember(dest => dest.Cameras, opt => opt.Ignore())
                 .ForMember(dest => dest.AiEhsInstalled, opt => opt.Ignore())
                 .ForMember(dest => dest.AiSecurityInstalled, opt => opt.Ignore());
 
@@ -75,6 +76,7 @@ namespace IotDashboard.Application.Mappers
                 .ForMember(dest => dest.RmsSerialNumber, opt => opt.UseDestinationValue())
                 .ForMember(dest => dest.SimCardNumber, opt => opt.UseDestinationValue())
                 .ForMember(dest => dest.CamerasInstalledCount, opt => opt.UseDestinationValue())
+                .ForMember(dest => dest.Cameras, opt => opt.UseDestinationValue())
                 .ForMember(dest => dest.AiEhsInstalled, opt => opt.UseDestinationValue())
                 .ForMember(dest => dest.AiSecurityInstalled, opt => opt.UseDestinationValue());
         }

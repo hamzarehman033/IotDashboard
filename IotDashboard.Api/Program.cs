@@ -77,6 +77,7 @@ await app.ApplyPendingMigrations();
 app.UseMiddleware<LocalizationMiddleware>();
 app.MapControllers();
 app.MapHub<DeviceDataHub>("/hubs/device-data");
+app.MapHub<CameraStreamHub>("/hubs/camera-stream");
 
 // Initialize device data service for MQTT to SignalR integration
 using (var scope = app.Services.CreateScope())

@@ -1,3 +1,5 @@
+using IotDashboard.Domain.Entities;
+
 namespace IotDashboard.Application.Dtos
 {
     public class DeviceVM
@@ -42,6 +44,7 @@ namespace IotDashboard.Application.Dtos
         public string RmsSerialNumber { get; set; } = string.Empty;
         public string SimCardNumber { get; set; } = string.Empty;
         public int CamerasInstalledCount { get; set; }
+        public List<CameraItem> Cameras { get; set; } = new();
         public bool AiEhsInstalled { get; set; }
         public bool AiSecurityInstalled { get; set; }
         public List<long> TenantIds { get; set; } = new List<long>();
