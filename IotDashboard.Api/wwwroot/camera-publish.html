@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Publish camera to IotDashboard</title>
+  <style>
+    body { font-family: Segoe UI, sans-serif; margin: 24px; max-width: 720px; }
+    label { display: block; margin: 8px 0 4px; }
+    input, button { padding: 6px 8px; }
+    input { width: 100%; box-sizing: border-box; }
+    video { width: 100%; background: #111; min-height: 240px; margin-top: 12px; }
+    #log { white-space: pre-wrap; background: #f4f4f4; padding: 8px; height: 120px; overflow: auto; }
+    button { margin: 12px 8px 0 0; }
+    .hint { color: #555; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>Start stream from this PC</h1>
+  <p class="hint">Open this page on the remote machine. API URL is the API origin only, e.g. https://localhost:7170</p>
+  <label>API URL</label>
+  <input id="apiUrl" placeholder="https://localhost:7170" />
+  <label>Device id</label>
+  <input id="deviceId" type="number" />
+  <label>Camera index</label>
+  <input id="cameraIndex" type="number" value="0" />
+  <label>TURN URL (optional, needed across NATs)</label>
+  <input id="turnUrl" placeholder="turn:turn.example.com:3478" />
+  <label>TURN username</label>
+  <input id="turnUser" />
+  <label>TURN password</label>
+  <input id="turnPass" type="password" />
+  <button id="start">Start stream</button>
+  <button id="stop">Stop</button>
+  <video id="video" autoplay playsinline muted></video>
+  <div id="log"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+  <script src="camera-stream.js"></script>
+  <script>
+    document.getElementById("apiUrl").value = location.origin;
+    const video = document.getElementById("video");
+    let connection, form, peer, stream, sessionId;
+
+    document.getElementById("start").onclick = async () => {
+      try {
+        sessionId = crypto.randomUUID();
+        ({ connection, form } = await connectHub(async (message) => {
+          if (message.payload?.type === "answer") {
+            await peer.setRemoteDescription({ type: "answer", sdp: message.payload.sdp });
+          } else if (message.payload?.type === "ice" && message.payload.candidate) {
+            await peer.addIceCandidate(message.payload.candidate);
+          }
+        }));
+
+        peer = new RTCPeerConnection({ iceServers: iceServersFromForm() });
+        peer.onicecandidate = (e) => {
+          if (e.candidate) sendSignal(connection, form, sessionId, { type: "ice", candidate: e.candidate });
+        };
+
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        video.srcObject = stream;
+        stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+        await sendSignal(connection, form, sessionId, { type: "offer", sdp: offer.sdp });
+        log("Streaming from this PC");
+      } catch (e) {
+        log(e.message || String(e));
+      }
+    };
+
+    document.getElementById("stop").onclick = async () => {
+      await stopHub(connection, form, stream, peer);
+      video.srcObject = null;
+      log("Stopped");
+    };
+  </script>
+</body>
+</html>
