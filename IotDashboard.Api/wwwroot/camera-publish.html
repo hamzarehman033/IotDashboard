@@ -40,39 +40,61 @@
   <script>
     document.getElementById("apiUrl").value = location.origin;
     const video = document.getElementById("video");
-    let connection, form, peer, stream, sessionId;
+    const peers = new Map();
+    let connection, form, stream;
+
+    function closePeer(viewerConnectionId) {
+      const peer = peers.get(viewerConnectionId);
+      if (!peer) return;
+      peer.close();
+      peers.delete(viewerConnectionId);
+    }
+
+    function closeAllPeers() {
+      for (const id of [...peers.keys()]) closePeer(id);
+    }
+
+    async function offerToViewer(viewerConnectionId) {
+      closePeer(viewerConnectionId);
+      const peer = new RTCPeerConnection({ iceServers: iceServers() });
+      peers.set(viewerConnectionId, peer);
+      peer.onicecandidate = (e) => {
+        if (e.candidate) signal(connection, form, viewerConnectionId, { type: "ice", candidate: e.candidate });
+      };
+      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+      await signal(connection, form, viewerConnectionId, { type: "offer", sdp: offer.sdp });
+      log("Offer → " + viewerConnectionId);
+    }
 
     document.getElementById("start").onclick = async () => {
       try {
-        sessionId = crypto.randomUUID();
-        ({ connection, form } = await connectHub(async (message) => {
-          if (message.payload?.type === "answer") {
-            await peer.setRemoteDescription({ type: "answer", sdp: message.payload.sdp });
-          } else if (message.payload?.type === "ice" && message.payload.candidate) {
-            await peer.addIceCandidate(message.payload.candidate);
-          }
-        }));
-
-        peer = new RTCPeerConnection({ iceServers: iceServersFromForm() });
-        peer.onicecandidate = (e) => {
-          if (e.candidate) sendSignal(connection, form, sessionId, { type: "ice", candidate: e.candidate });
-        };
-
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         video.srcObject = stream;
-        stream.getTracks().forEach((track) => peer.addTrack(track, stream));
 
-        const offer = await peer.createOffer();
-        await peer.setLocalDescription(offer);
-        await sendSignal(connection, form, sessionId, { type: "offer", sdp: offer.sdp });
-        log("Streaming from this PC");
+        ({ connection, form } = await connect("publisher", {
+          StartRequested: (message) => {
+            if (message.viewerConnectionId) offerToViewer(message.viewerConnectionId);
+          },
+          StopRequested: (message) => closePeer(message.viewerConnectionId),
+          CameraSignal: async (message) => {
+            const peer = peers.get(message.viewerConnectionId);
+            const payload = message.payload;
+            if (!peer || !payload) return;
+            if (payload.type === "answer") await peer.setRemoteDescription({ type: "answer", sdp: payload.sdp });
+            if (payload.type === "ice" && payload.candidate) await peer.addIceCandidate(payload.candidate);
+          }
+        }));
+        log("Publisher ready");
       } catch (e) {
         log(e.message || String(e));
       }
     };
 
     document.getElementById("stop").onclick = async () => {
-      await stopHub(connection, form, stream, peer);
+      stream?.getTracks().forEach((track) => track.stop());
+      await stop(connection, form, closeAllPeers, true);
       video.srcObject = null;
       log("Stopped");
     };

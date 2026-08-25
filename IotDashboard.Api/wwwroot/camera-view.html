@@ -17,9 +17,9 @@
 </head>
 <body>
   <h1>View stream</h1>
-  <p class="hint">Open this on your system. Remote PC uses <a href="/camera-publish.html">camera-publish.html</a> with the same device id.</p>
+  <p class="hint">Open this on your system. Remote PC uses camera-publish.html with the same device id. Multiple viewers are supported.</p>
   <label>API URL</label>
-  <input id="apiUrl" />
+  <input id="apiUrl" placeholder="https://localhost:7170" />
   <label>Device id</label>
   <input id="deviceId" type="number" />
   <label>Camera index</label>
@@ -40,38 +40,48 @@
   <script>
     document.getElementById("apiUrl").value = location.origin;
     const video = document.getElementById("video");
-    let connection, form, peer, sessionId;
+    let connection, form, peer;
+
+    function closePeer() {
+      peer?.close();
+      peer = null;
+      video.srcObject = null;
+    }
+
+    const handlers = {
+      PublisherJoined: () => connection.invoke("RequestOffer", form.deviceId, form.cameraIndex),
+      PublisherLeft: closePeer,
+      CameraSignal: async (message) => {
+        const payload = message.payload;
+        if (!payload || !peer) return;
+        if (payload.type === "offer") {
+          await peer.setRemoteDescription({ type: "offer", sdp: payload.sdp });
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          await signal(connection, form, connection.connectionId, { type: "answer", sdp: answer.sdp });
+        } else if (payload.type === "ice" && payload.candidate) {
+          await peer.addIceCandidate(payload.candidate);
+        }
+      }
+    };
 
     document.getElementById("start").onclick = async () => {
       try {
-        sessionId = crypto.randomUUID();
-        peer = new RTCPeerConnection({ iceServers: iceServersFromForm() });
+        closePeer();
+        peer = new RTCPeerConnection({ iceServers: iceServers() });
         peer.ontrack = (e) => { video.srcObject = e.streams[0]; };
         peer.onicecandidate = (e) => {
-          if (e.candidate) sendSignal(connection, form, sessionId, { type: "ice", candidate: e.candidate });
+          if (e.candidate && connection) signal(connection, form, connection.connectionId, { type: "ice", candidate: e.candidate });
         };
-
-        ({ connection, form } = await connectHub(async (message) => {
-          const payload = message.payload;
-          if (!payload || !peer) return;
-          if (payload.type === "offer") {
-            await peer.setRemoteDescription({ type: "offer", sdp: payload.sdp });
-            const answer = await peer.createAnswer();
-            await peer.setLocalDescription(answer);
-            await sendSignal(connection, form, sessionId, { type: "answer", sdp: answer.sdp });
-          } else if (payload.type === "ice" && payload.candidate) {
-            await peer.addIceCandidate(payload.candidate);
-          }
-        }));
-        log("Waiting for remote stream");
+        ({ connection, form } = await connect("viewer", handlers, connection));
+        log("Waiting for offer");
       } catch (e) {
         log(e.message || String(e));
       }
     };
 
     document.getElementById("stop").onclick = async () => {
-      await stopHub(connection, form, null, peer);
-      video.srcObject = null;
+      await stop(connection, form, closePeer);
       log("Stopped");
     };
   </script>
