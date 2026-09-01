@@ -96,6 +96,29 @@ namespace IotDashboard.Infrastructure.Persistence
 
             });
 
+            modelBuilder.Entity<Activity>(entity =>
+            {
+                entity.ToTable("Activities").HasKey(x => x.Id);
+                entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.Description).HasMaxLength(1000).IsRequired();
+                entity.Property(x => x.Date).HasColumnType("date").IsRequired();
+                entity.Property(x => x.StartTime).HasColumnType("time without time zone").IsRequired();
+                entity.Property(x => x.EndTime).HasColumnType("time without time zone").IsRequired();
+                entity.Property(x => x.Team).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.Persons).IsRequired();
+                entity.HasIndex(x => new { x.CustomerId, x.Date });
+                entity.HasIndex(x => new { x.DeviceId, x.Date });
+                entity.HasOne(x => x.Customer)
+                    .WithMany()
+                    .HasForeignKey(x => x.CustomerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(x => x.Device)
+                    .WithMany()
+                    .HasForeignKey(x => x.DeviceId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasQueryFilter(x => x.CustomerId == _currentUserService.GetCustomerId());
+            });
+
             modelBuilder.Entity<Location>(entity =>
             {
                 entity.ToTable("Locations").HasKey(x => x.Id);
@@ -273,6 +296,7 @@ namespace IotDashboard.Infrastructure.Persistence
         }
 
         public DbSet<Weather> Weathers { get; set; }
+        public DbSet<Activity> Activities { get; set; }
         public DbSet<Customer> Customers { get; set; }
         public DbSet<Subscription> Subscriptions { get; set; }
         public DbSet<Location> Locations { get; set; }
@@ -306,6 +330,11 @@ namespace IotDashboard.Infrastructure.Persistence
                 if (entity.Entity is Device device)
                 {
                     device.CustomerId = _currentUserService.GetCustomerId();
+                }
+
+                if (entity.Entity is Activity activity)
+                {
+                    activity.CustomerId = _currentUserService.GetCustomerId();
                 }
 
                 if (entity.Entity is BaseEntity bentity)

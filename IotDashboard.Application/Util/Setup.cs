@@ -42,6 +42,7 @@ namespace IotDashboard.Application.Util
             services.AddScoped<IValidator<ResetPasswordVM>, ResetPasswordValidator>();
             services.AddScoped<IValidator<CustomerDetailVM>, CustomerDetailVMValidator>();
             services.AddScoped<IValidator<SubscriptionDetailVM>, SubscriptionDetailVMValidator>();
+            services.AddScoped<IValidator<ActivityVM>, ActivityVMValidator>();
             services.AddScoped<IValidator<LocationVM>, LocationVMValidator>();
             services.AddScoped<IValidator<TenantVM>, TenantVMValidator>();
             services.AddScoped<IValidator<DeviceVM>, DeviceVMValidator>();
@@ -52,6 +53,7 @@ namespace IotDashboard.Application.Util
         private static void SetupHandlers(this IServiceCollection services)
         {
             services.AddScoped<IWeatherHandler, WeatherHandler>();
+            services.AddScoped<IActivityHandler, ActivityHandler>();
             services.AddScoped<IUserHandler, UserHandler>();
             services.AddScoped<ICustomerHandler, CustomerHandler>();
             services.AddScoped<ISubscriptionHandler, SubscriptionHandler>();
