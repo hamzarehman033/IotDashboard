@@ -1,6 +1,7 @@
 using IotDashboard.Api.Util;
 using IotDashboard.Api.Hubs;
 using IotDashboard.Api.Services;
+using IotDashboard.Application.Handlers.Interface;
 using IotDashboard.Application.Util;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi.Models;
@@ -53,6 +54,7 @@ builder.Services.AddSingleton<IReportCsvExportService, ReportCsvExportService>()
 builder.Services.AddTransient<IReportDownloadService, ReportDownloadService>();
 builder.Services.AddTransient<IStatisticService, StatisticService>();
 builder.Services.AddScoped<IDeviceDataService, DeviceDataService>();
+builder.Services.AddSingleton<IActivityDeviceNotifier, ActivityDeviceNotifier>();
 builder.Services.Configure<TelemetryRetentionOptions>(
     builder.Configuration.GetSection(TelemetryRetentionOptions.SectionName));
 builder.Services.AddHostedService<MqttConnectionHostedService>();
@@ -78,6 +80,7 @@ app.UseMiddleware<LocalizationMiddleware>();
 app.MapControllers();
 app.MapHub<DeviceDataHub>("/hubs/device-data");
 app.MapHub<CameraStreamHub>("/hubs/camera-stream");
+app.MapHub<ActivityHub>("/hubs/activity");
 
 // Initialize device data service for MQTT to SignalR integration
 using (var scope = app.Services.CreateScope())
