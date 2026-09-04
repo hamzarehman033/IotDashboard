@@ -234,7 +234,7 @@ namespace IotDashboard.Api.Services
                 System.Net.HttpStatusCode.Unauthorized =>
                     "Invalid Groq API key. Check Azure App Setting Groq__ApiKey (or local user secrets).",
                 System.Net.HttpStatusCode.Forbidden =>
-                    "Groq access denied for this API key. Verify the key and model access in the Groq console.",
+                    "Groq access denied for this API key. Verify the key and model access in the Groq console." + " " + detail + " " + JsonSerializer.Serialize(json),
                 System.Net.HttpStatusCode.TooManyRequests =>
                     "Groq rate limit reached. Please try again shortly.",
                 System.Net.HttpStatusCode.BadRequest when LooksLikeKeyOrAuthError(detail) =>
