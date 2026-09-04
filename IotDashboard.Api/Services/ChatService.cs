@@ -54,6 +54,9 @@ namespace IotDashboard.Api.Services
         {
             _http = http;
             _groq = groq.Value;
+            _groq.ApiKey = (_groq.ApiKey ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(_groq.ModelId))
+                _groq.ModelId = "openai/gpt-oss-20b";
             _devices = devices;
             _activities = activities;
             _telemetry = telemetry;
@@ -79,7 +82,7 @@ namespace IotDashboard.Api.Services
                 return Fail($"Message must be at most {_groq.MaxMessageLength} characters.");
 
             if (string.IsNullOrWhiteSpace(_groq.ApiKey))
-                return Fail("Chat is not configured. Missing Groq API key.");
+                return Fail("Groq API key is missing. Set Groq__ApiKey in Azure App Settings (or user secrets locally).");
 
             request ??= new ChatRequestVM();
             var messages = BuildMessages(request, message);
@@ -130,9 +133,7 @@ namespace IotDashboard.Api.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Chat request failed");
-                return Fail(_env.IsDevelopment()
-                    ? $"Chat failed: {ex.Message}"
-                    : "Unable to get an answer right now. Please try again later.");
+                return Fail(MapException(ex, ct));
             }
         }
 
@@ -190,39 +191,114 @@ namespace IotDashboard.Api.Services
                 ToolChoice = includeTools ? "auto" : null
             };
 
-            using var req = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
+            try
             {
-                Content = JsonContent.Create(body, options: JsonOptions)
+                using var req = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
+                {
+                    Content = JsonContent.Create(body, options: JsonOptions)
+                };
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _groq.ApiKey);
+
+                using var res = await _http.SendAsync(req, ct);
+                var json = await res.Content.ReadAsStringAsync(ct);
+
+                if (!res.IsSuccessStatusCode)
+                    return GroqCallResult.Fail(MapHttpError(res.StatusCode, json));
+
+                using var doc = JsonDocument.Parse(json);
+                var choice = doc.RootElement.GetProperty("choices")[0].GetProperty("message");
+                var content = choice.TryGetProperty("content", out var c) && c.ValueKind != JsonValueKind.Null
+                    ? c.GetString()
+                    : null;
+
+                List<GroqToolCall>? toolCalls = null;
+                if (choice.TryGetProperty("tool_calls", out var toolsEl) && toolsEl.ValueKind == JsonValueKind.Array)
+                    toolCalls = JsonSerializer.Deserialize<List<GroqToolCall>>(toolsEl.GetRawText(), JsonOptions);
+
+                return GroqCallResult.Success(content, toolCalls);
+            }
+            catch (Exception ex) when (IsNetworkFailure(ex) || IsTimeout(ex, ct))
+            {
+                _logger.LogError(ex, "Unable to reach Groq");
+                return GroqCallResult.Fail(MapException(ex, ct));
+            }
+        }
+
+        private string MapHttpError(System.Net.HttpStatusCode statusCode, string json)
+        {
+            _logger.LogWarning("Groq failed: {Status} {Body}", (int)statusCode, json);
+            var detail = TryReadGroqError(json);
+
+            return statusCode switch
+            {
+                System.Net.HttpStatusCode.Unauthorized =>
+                    "Invalid Groq API key. Check Azure App Setting Groq__ApiKey (or local user secrets).",
+                System.Net.HttpStatusCode.Forbidden =>
+                    "Groq access denied for this API key. Verify the key and model access in the Groq console.",
+                System.Net.HttpStatusCode.TooManyRequests =>
+                    "Groq rate limit reached. Please try again shortly.",
+                System.Net.HttpStatusCode.BadRequest when LooksLikeKeyOrAuthError(detail) =>
+                    "Groq rejected the API key or request authentication. Check Groq__ApiKey.",
+                System.Net.HttpStatusCode.BadGateway or
+                System.Net.HttpStatusCode.ServiceUnavailable or
+                System.Net.HttpStatusCode.GatewayTimeout =>
+                    "Groq service is temporarily unavailable. Please try again later.",
+                _ => string.IsNullOrWhiteSpace(detail)
+                    ? $"Groq request failed (HTTP {(int)statusCode})."
+                    : detail!
             };
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _groq.ApiKey);
+        }
 
-            using var res = await _http.SendAsync(req, ct);
-            var json = await res.Content.ReadAsStringAsync(ct);
+        private string MapException(Exception ex, CancellationToken ct)
+        {
+            if (ct.IsCancellationRequested)
+                return "The chat request was cancelled.";
 
-            if (!res.IsSuccessStatusCode)
+            if (IsTimeout(ex, ct))
+                return "Timed out while reaching Groq. Check App Service outbound network access to api.groq.com.";
+
+            if (IsNetworkFailure(ex))
+                return "Cannot reach Groq (network error). Check App Service outbound internet access to api.groq.com, DNS, and firewall/VNet rules.";
+
+            return _env.IsDevelopment()
+                ? $"Chat failed: {ex.Message}"
+                : "Unable to get an answer right now. Please try again later.";
+        }
+
+        private static bool IsTimeout(Exception ex, CancellationToken ct)
+        {
+            if (ct.IsCancellationRequested)
+                return false;
+
+            return ex is TaskCanceledException or TimeoutException
+                || ex.InnerException is TaskCanceledException or TimeoutException;
+        }
+
+        private static bool IsNetworkFailure(Exception ex)
+        {
+            for (var current = ex; current != null; current = current.InnerException)
             {
-                _logger.LogWarning("Groq failed: {Status} {Body}", (int)res.StatusCode, json);
-                var detail = TryReadGroqError(json);
-                if (res.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-                    return GroqCallResult.Fail("AI rate limit reached. Please try again shortly.");
-                if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                    return GroqCallResult.Fail("Invalid Groq API key.");
-                return GroqCallResult.Fail(_env.IsDevelopment() && !string.IsNullOrWhiteSpace(detail)
-                    ? detail!
-                    : "The AI service returned an error. Please try again later.");
+                if (current is HttpRequestException or System.Net.Sockets.SocketException or System.Net.Http.HttpIOException)
+                    return true;
+
+                var name = current.GetType().FullName ?? string.Empty;
+                if (name.Contains("Socket", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("Network", StringComparison.OrdinalIgnoreCase))
+                    return true;
             }
 
-            using var doc = JsonDocument.Parse(json);
-            var choice = doc.RootElement.GetProperty("choices")[0].GetProperty("message");
-            var content = choice.TryGetProperty("content", out var c) && c.ValueKind != JsonValueKind.Null
-                ? c.GetString()
-                : null;
+            return false;
+        }
 
-            List<GroqToolCall>? toolCalls = null;
-            if (choice.TryGetProperty("tool_calls", out var toolsEl) && toolsEl.ValueKind == JsonValueKind.Array)
-                toolCalls = JsonSerializer.Deserialize<List<GroqToolCall>>(toolsEl.GetRawText(), JsonOptions);
+        private static bool LooksLikeKeyOrAuthError(string? detail)
+        {
+            if (string.IsNullOrWhiteSpace(detail))
+                return false;
 
-            return GroqCallResult.Success(content, toolCalls);
+            return detail.Contains("api key", StringComparison.OrdinalIgnoreCase)
+                || detail.Contains("invalid key", StringComparison.OrdinalIgnoreCase)
+                || detail.Contains("authentication", StringComparison.OrdinalIgnoreCase)
+                || detail.Contains("unauthorized", StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task<string> ExecuteToolAsync(

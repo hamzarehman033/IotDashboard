@@ -82,6 +82,13 @@ app.UseAuthorization();
 
 await app.ApplyPendingMigrations();
 app.UseMiddleware<LocalizationMiddleware>();
+
+app.MapGet("/", () => Results.Ok(new
+{
+    status = "Success",
+    message = "Server is running.",
+    utc = DateTime.UtcNow
+})).AllowAnonymous();
 app.MapControllers();
 app.MapHub<DeviceDataHub>("/hubs/device-data");
 app.MapHub<CameraStreamHub>("/hubs/camera-stream");
