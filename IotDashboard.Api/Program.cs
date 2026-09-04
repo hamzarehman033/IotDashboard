@@ -57,6 +57,11 @@ builder.Services.AddScoped<IDeviceDataService, DeviceDataService>();
 builder.Services.AddSingleton<IActivityDeviceNotifier, ActivityDeviceNotifier>();
 builder.Services.Configure<TelemetryRetentionOptions>(
     builder.Configuration.GetSection(TelemetryRetentionOptions.SectionName));
+builder.Services.AddHttpClient<IChatService, ChatService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.groq.com/openai/v1/");
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
 builder.Services.AddHostedService<MqttConnectionHostedService>();
 builder.Services.AddHostedService<TelemetryRetentionHostedService>();
 var app = builder.Build();

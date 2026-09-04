@@ -4,6 +4,7 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
+		<UserSecretsId>iotdashboard-api-groq-secrets</UserSecretsId>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -28,6 +29,12 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\IotDashboard.Application\IotDashboard.Application.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Content Update="Content\faq.md">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
 	</ItemGroup>
 
 </Project>

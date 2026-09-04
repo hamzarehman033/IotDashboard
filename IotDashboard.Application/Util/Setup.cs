@@ -80,6 +80,7 @@ namespace IotDashboard.Application.Util
         private static void SetupConfigs(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<JWTConfigs>(configuration.GetSection("JWTConfigs"));
+            services.Configure<GroqConfigs>(configuration.GetSection("Groq"));
         }
 
         private static void SetupTokenValidation(this IServiceCollection services, IConfiguration configuration)
