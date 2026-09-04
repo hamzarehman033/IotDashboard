@@ -199,8 +199,11 @@ namespace IotDashboard.Api.Services
                 };
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _groq.ApiKey);
 
+                _logger.LogInformation("Sending request to Groq: {Request}", JsonSerializer.Serialize(body));
                 using var res = await _http.SendAsync(req, ct);
                 var json = await res.Content.ReadAsStringAsync(ct);
+                Console.WriteLine(json);
+                _logger.LogInformation("Response from Groq: {Response}", json);
 
                 if (!res.IsSuccessStatusCode)
                     return GroqCallResult.Fail(MapHttpError(res.StatusCode, json));
