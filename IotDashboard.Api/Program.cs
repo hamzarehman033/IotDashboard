@@ -59,7 +59,7 @@ builder.Services.Configure<TelemetryRetentionOptions>(
     builder.Configuration.GetSection(TelemetryRetentionOptions.SectionName));
 builder.Services.AddHttpClient<IChatService, ChatService>(client =>
 {
-    client.BaseAddress = new Uri("https://api.groq.com/openai/v1/");
+    client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/v1beta/openai/");
     client.Timeout = TimeSpan.FromSeconds(60);
 });
 builder.Services.AddHostedService<MqttConnectionHostedService>();

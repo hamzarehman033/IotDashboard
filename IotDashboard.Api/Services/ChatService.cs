@@ -9,7 +9,6 @@ using IotDashboard.Application.Util;
 using IotDashboard.Domain.Entities;
 using IotDashboard.Domain.Interfaces;
 using IotDashboard.Infrastructure.AuditServices;
-using IotDashboard.Infrastructure.ExternalServices.Mqtt;
 using IotDashboard.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -25,7 +24,7 @@ namespace IotDashboard.Api.Services
         };
 
         private readonly HttpClient _http;
-        private readonly GroqConfigs _groq;
+        private readonly GeminiConfigs _gemini;
         private readonly IDeviceRepository _devices;
         private readonly IActivityRepository _activities;
         private readonly ITelemetryHandler _telemetry;
@@ -41,7 +40,7 @@ namespace IotDashboard.Api.Services
 
         public ChatService(
             HttpClient http,
-            IOptions<GroqConfigs> groq,
+            IOptions<GeminiConfigs> gemini,
             IDeviceRepository devices,
             IActivityRepository activities,
             ITelemetryHandler telemetry,
@@ -53,10 +52,10 @@ namespace IotDashboard.Api.Services
             ILogger<ChatService> logger)
         {
             _http = http;
-            _groq = groq.Value;
-            _groq.ApiKey = (_groq.ApiKey ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(_groq.ModelId))
-                _groq.ModelId = "openai/gpt-oss-20b";
+            _gemini = gemini.Value;
+            _gemini.ApiKey = (_gemini.ApiKey ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(_gemini.ModelId))
+                _gemini.ModelId = "gemini-3.5-flash";
             _devices = devices;
             _activities = activities;
             _telemetry = telemetry;
@@ -78,23 +77,41 @@ namespace IotDashboard.Api.Services
             if (string.IsNullOrWhiteSpace(message))
                 return Fail("Message is required.");
 
-            if (message.Length > _groq.MaxMessageLength)
-                return Fail($"Message must be at most {_groq.MaxMessageLength} characters.");
+            if (message.Length > _gemini.MaxMessageLength)
+                return Fail($"Message must be at most {_gemini.MaxMessageLength} characters.");
 
-            if (string.IsNullOrWhiteSpace(_groq.ApiKey))
-                return Fail("Groq API key is missing. Set Groq__ApiKey in Azure App Settings (or user secrets locally).");
+            if (string.IsNullOrWhiteSpace(_gemini.ApiKey))
+                return Fail("Gemini API key is missing. Set Gemini__ApiKey in Azure App Settings (or user secrets locally).");
 
             request ??= new ChatRequestVM();
             var messages = BuildMessages(request, message);
 
             try
             {
-                var first = await CallGroqAsync(messages, includeTools: true, ct);
+                var first = await CallLlmAsync(messages, includeTools: true, ct);
                 if (!first.Ok)
                     return Fail(first.Error!);
 
                 if (first.ToolCalls is { Count: > 0 })
                 {
+                    foreach (var tc in first.ToolCalls)
+                    {
+                        if (string.IsNullOrWhiteSpace(tc.Id))
+                            tc.Id = $"call_{Guid.NewGuid():N}";
+
+                        // Gemini 3.x rejects tool follow-ups without thought_signature.
+                        if (string.IsNullOrWhiteSpace(tc.ExtraContent?.Google?.ThoughtSignature))
+                        {
+                            tc.ExtraContent = new LlmExtraContent
+                            {
+                                Google = new LlmGoogleExtra
+                                {
+                                    ThoughtSignature = "skip_thought_signature_validator"
+                                }
+                            };
+                        }
+                    }
+
                     var call = first.ToolCalls[0];
                     var toolResult = await ExecuteToolAsync(
                         call.Function?.Name,
@@ -102,20 +119,21 @@ namespace IotDashboard.Api.Services
                         request,
                         ct);
 
-                    messages.Add(new GroqMessage
+                    messages.Add(new LlmMessage
                     {
                         Role = "assistant",
                         Content = first.Content,
                         ToolCalls = first.ToolCalls
                     });
-                    messages.Add(new GroqMessage
+                    messages.Add(new LlmMessage
                     {
                         Role = "tool",
                         ToolCallId = call.Id,
+                        Name = call.Function?.Name,
                         Content = toolResult
                     });
 
-                    var second = await CallGroqAsync(messages, includeTools: false, ct);
+                    var second = await CallLlmAsync(messages, includeTools: false, ct);
                     if (!second.Ok)
                         return Fail(second.Error!);
 
@@ -137,7 +155,7 @@ namespace IotDashboard.Api.Services
             }
         }
 
-        private List<GroqMessage> BuildMessages(ChatRequestVM request, string message)
+        private List<LlmMessage> BuildMessages(ChatRequestVM request, string message)
         {
             var contextHint = string.Empty;
             if (request.DeviceId.HasValue || !string.IsNullOrWhiteSpace(request.DeviceName))
@@ -147,7 +165,7 @@ namespace IotDashboard.Api.Services
                     "Use this when calling GetDeviceStatus if the user asks about a device status.\n";
             }
 
-            return new List<GroqMessage>
+            return new List<LlmMessage>
             {
                 new()
                 {
@@ -165,27 +183,65 @@ namespace IotDashboard.Api.Services
                 }
             }
             .Concat(BuildHistory(request))
-            .Append(new GroqMessage { Role = "user", Content = message })
+            .Append(new LlmMessage { Role = "user", Content = message })
             .ToList();
         }
 
-        private static IEnumerable<GroqMessage> BuildHistory(ChatRequestVM request)
+        private static IEnumerable<LlmMessage> BuildHistory(ChatRequestVM request)
         {
             foreach (var h in (request.History ?? new()).TakeLast(6))
             {
                 var role = h.Role?.Trim().ToLowerInvariant();
                 if ((role == "user" || role == "assistant") && !string.IsNullOrWhiteSpace(h.Content))
-                    yield return new GroqMessage { Role = role, Content = h.Content.Trim() };
+                    yield return new LlmMessage { Role = role, Content = h.Content.Trim() };
             }
         }
 
-        private async Task<GroqCallResult> CallGroqAsync(List<GroqMessage> messages, bool includeTools, CancellationToken ct)
+        private async Task<LlmCallResult> CallLlmAsync(List<LlmMessage> messages, bool includeTools, CancellationToken ct)
         {
-            var body = new GroqRequest
+            var models = new List<string> { _gemini.ModelId };
+            if (!string.IsNullOrWhiteSpace(_gemini.FallbackModelId) &&
+                !string.Equals(_gemini.FallbackModelId, _gemini.ModelId, StringComparison.OrdinalIgnoreCase))
+                models.Add(_gemini.FallbackModelId);
+
+            LlmCallResult? lastFail = null;
+            foreach (var model in models)
             {
-                Model = _groq.ModelId,
+                for (var attempt = 0; attempt < 3; attempt++)
+                {
+                    if (attempt > 0)
+                    {
+                        var delayMs = 400 * (1 << (attempt - 1)) + Random.Shared.Next(0, 250);
+                        _logger.LogInformation(
+                            "Retrying Gemini model {Model} after capacity/rate limit (attempt {Attempt})",
+                            model, attempt + 1);
+                        await Task.Delay(delayMs, ct);
+                    }
+
+                    var result = await CallLlmOnceAsync(messages, includeTools, model, ct);
+                    if (result.Ok)
+                        return result;
+
+                    lastFail = result;
+                    if (!IsTransientCapacityFailure(result.Error))
+                        return result;
+                }
+            }
+
+            return lastFail ?? LlmCallResult.Fail("Gemini is temporarily unavailable. Please try again shortly.");
+        }
+
+        private async Task<LlmCallResult> CallLlmOnceAsync(
+            List<LlmMessage> messages,
+            bool includeTools,
+            string modelId,
+            CancellationToken ct)
+        {
+            var body = new LlmChatRequest
+            {
+                Model = modelId,
                 Messages = messages,
-                MaxTokens = _groq.MaxTokens,
+                MaxTokens = _gemini.MaxTokens,
                 Temperature = 0.2,
                 Tools = includeTools ? ChatTools.All : null,
                 ToolChoice = includeTools ? "auto" : null
@@ -197,16 +253,13 @@ namespace IotDashboard.Api.Services
                 {
                     Content = JsonContent.Create(body, options: JsonOptions)
                 };
-                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _groq.ApiKey);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _gemini.ApiKey);
 
-                _logger.LogInformation("Sending request to Groq: {Request}", JsonSerializer.Serialize(body));
                 using var res = await _http.SendAsync(req, ct);
                 var json = await res.Content.ReadAsStringAsync(ct);
-                Console.WriteLine(json);
-                _logger.LogInformation("Response from Groq: {Response}", json);
 
                 if (!res.IsSuccessStatusCode)
-                    return GroqCallResult.Fail(MapHttpError(res.StatusCode, json));
+                    return LlmCallResult.Fail(MapHttpError(res.StatusCode, json));
 
                 using var doc = JsonDocument.Parse(json);
                 var choice = doc.RootElement.GetProperty("choices")[0].GetProperty("message");
@@ -214,40 +267,66 @@ namespace IotDashboard.Api.Services
                     ? c.GetString()
                     : null;
 
-                List<GroqToolCall>? toolCalls = null;
+                List<LlmToolCall>? toolCalls = null;
                 if (choice.TryGetProperty("tool_calls", out var toolsEl) && toolsEl.ValueKind == JsonValueKind.Array)
-                    toolCalls = JsonSerializer.Deserialize<List<GroqToolCall>>(toolsEl.GetRawText(), JsonOptions);
+                    toolCalls = JsonSerializer.Deserialize<List<LlmToolCall>>(toolsEl.GetRawText(), JsonOptions);
 
-                return GroqCallResult.Success(content, toolCalls);
+                return LlmCallResult.Success(content, toolCalls);
             }
             catch (Exception ex) when (IsNetworkFailure(ex) || IsTimeout(ex, ct))
             {
-                _logger.LogError(ex, "Unable to reach Groq");
-                return GroqCallResult.Fail(MapException(ex, ct));
+                _logger.LogError(ex, "Unable to reach Gemini");
+                return LlmCallResult.Fail(MapException(ex, ct));
             }
+        }
+
+        private static bool IsTransientCapacityFailure(string? error)
+        {
+            if (string.IsNullOrWhiteSpace(error))
+                return false;
+
+            return error.Contains("high demand", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("rate limit", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("temporarily unavailable", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("overloaded", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("UNAVAILABLE", StringComparison.OrdinalIgnoreCase);
         }
 
         private string MapHttpError(System.Net.HttpStatusCode statusCode, string json)
         {
-            _logger.LogWarning("Groq failed: {Status} {Body}", (int)statusCode, json);
-            var detail = TryReadGroqError(json);
+            _logger.LogWarning("Gemini failed: {Status} {Body}", (int)statusCode, json);
+            var detail = TryReadLlmError(json);
 
             return statusCode switch
             {
                 System.Net.HttpStatusCode.Unauthorized =>
-                    "Invalid Groq API key. Check Azure App Setting Groq__ApiKey (or local user secrets).",
+                    "Invalid Gemini API key. Check Azure App Setting Gemini__ApiKey (or local user secrets).",
                 System.Net.HttpStatusCode.Forbidden =>
-                    "Groq access denied for this API key. Verify the key and model access in the Groq console." + " " + detail + " " + JsonSerializer.Serialize(json),
+                    string.IsNullOrWhiteSpace(detail)
+                        ? "Gemini access denied (HTTP 403). Verify the API key in Google AI Studio."
+                        : $"Gemini access denied: {detail}",
                 System.Net.HttpStatusCode.TooManyRequests =>
-                    "Groq rate limit reached. Please try again shortly.",
+                    string.IsNullOrWhiteSpace(detail)
+                        ? "Gemini rate limit reached. Please try again shortly."
+                        : detail!,
+                System.Net.HttpStatusCode.NotFound =>
+                    string.IsNullOrWhiteSpace(detail)
+                        ? $"Gemini model '{_gemini.ModelId}' was not found (HTTP 404). Set Gemini__ModelId to gemini-3.5-flash (or another available model)."
+                        : detail!,
                 System.Net.HttpStatusCode.BadRequest when LooksLikeKeyOrAuthError(detail) =>
-                    "Groq rejected the API key or request authentication. Check Groq__ApiKey.",
+                    "Gemini rejected the API key or request authentication. Check Gemini__ApiKey.",
+                System.Net.HttpStatusCode.BadRequest =>
+                    string.IsNullOrWhiteSpace(detail)
+                        ? "Gemini rejected the request (HTTP 400)."
+                        : detail!,
                 System.Net.HttpStatusCode.BadGateway or
                 System.Net.HttpStatusCode.ServiceUnavailable or
                 System.Net.HttpStatusCode.GatewayTimeout =>
-                    "Groq service is temporarily unavailable. Please try again later.",
+                    string.IsNullOrWhiteSpace(detail)
+                        ? "Gemini is temporarily unavailable due to high demand. Please try again shortly."
+                        : detail!,
                 _ => string.IsNullOrWhiteSpace(detail)
-                    ? $"Groq request failed (HTTP {(int)statusCode})."
+                    ? $"Gemini request failed (HTTP {(int)statusCode})."
                     : detail!
             };
         }
@@ -258,10 +337,10 @@ namespace IotDashboard.Api.Services
                 return "The chat request was cancelled.";
 
             if (IsTimeout(ex, ct))
-                return "Timed out while reaching Groq. Check App Service outbound network access to api.groq.com.";
+                return "Timed out while reaching Gemini. Check App Service outbound network access to generativelanguage.googleapis.com.";
 
             if (IsNetworkFailure(ex))
-                return "Cannot reach Groq (network error). Check App Service outbound internet access to api.groq.com, DNS, and firewall/VNet rules.";
+                return "Cannot reach Gemini (network error). Check App Service outbound internet access to generativelanguage.googleapis.com, DNS, and firewall/VNet rules.";
 
             return _env.IsDevelopment()
                 ? $"Chat failed: {ex.Message}"
@@ -565,7 +644,7 @@ namespace IotDashboard.Api.Services
             return true;
         }
 
-        private static string? TryReadGroqError(string json)
+        private static string? TryReadLlmError(string json)
         {
             try
             {
@@ -593,34 +672,34 @@ namespace IotDashboard.Api.Services
             Message = new List<string> { message }
         };
 
-        private sealed class GroqCallResult
+        private sealed class LlmCallResult
         {
             public bool Ok { get; init; }
             public string? Content { get; init; }
-            public List<GroqToolCall>? ToolCalls { get; init; }
+            public List<LlmToolCall>? ToolCalls { get; init; }
             public string? Error { get; init; }
 
-            public static GroqCallResult Success(string? content, List<GroqToolCall>? toolCalls) => new()
+            public static LlmCallResult Success(string? content, List<LlmToolCall>? toolCalls) => new()
             {
                 Ok = true,
                 Content = content,
                 ToolCalls = toolCalls
             };
 
-            public static GroqCallResult Fail(string error) => new()
+            public static LlmCallResult Fail(string error) => new()
             {
                 Ok = false,
                 Error = error
             };
         }
 
-        private sealed class GroqRequest
+        private sealed class LlmChatRequest
         {
             [JsonPropertyName("model")]
             public string Model { get; set; } = string.Empty;
 
             [JsonPropertyName("messages")]
-            public List<GroqMessage> Messages { get; set; } = new();
+            public List<LlmMessage> Messages { get; set; } = new();
 
             [JsonPropertyName("max_tokens")]
             public int MaxTokens { get; set; }
@@ -629,13 +708,13 @@ namespace IotDashboard.Api.Services
             public double Temperature { get; set; }
 
             [JsonPropertyName("tools")]
-            public List<GroqTool>? Tools { get; set; }
+            public List<LlmTool>? Tools { get; set; }
 
             [JsonPropertyName("tool_choice")]
             public string? ToolChoice { get; set; }
         }
 
-        private sealed class GroqMessage
+        private sealed class LlmMessage
         {
             [JsonPropertyName("role")]
             public string Role { get; set; } = string.Empty;
@@ -643,14 +722,17 @@ namespace IotDashboard.Api.Services
             [JsonPropertyName("content")]
             public string? Content { get; set; }
 
+            [JsonPropertyName("name")]
+            public string? Name { get; set; }
+
             [JsonPropertyName("tool_call_id")]
             public string? ToolCallId { get; set; }
 
             [JsonPropertyName("tool_calls")]
-            public List<GroqToolCall>? ToolCalls { get; set; }
+            public List<LlmToolCall>? ToolCalls { get; set; }
         }
 
-        private sealed class GroqToolCall
+        private sealed class LlmToolCall
         {
             [JsonPropertyName("id")]
             public string Id { get; set; } = string.Empty;
@@ -659,10 +741,26 @@ namespace IotDashboard.Api.Services
             public string Type { get; set; } = "function";
 
             [JsonPropertyName("function")]
-            public GroqFunctionCall? Function { get; set; }
+            public LlmFunctionCall? Function { get; set; }
+
+            /// <summary>Gemini 3.x requires round-tripping thought_signature on tool calls.</summary>
+            [JsonPropertyName("extra_content")]
+            public LlmExtraContent? ExtraContent { get; set; }
         }
 
-        private sealed class GroqFunctionCall
+        private sealed class LlmExtraContent
+        {
+            [JsonPropertyName("google")]
+            public LlmGoogleExtra? Google { get; set; }
+        }
+
+        private sealed class LlmGoogleExtra
+        {
+            [JsonPropertyName("thought_signature")]
+            public string? ThoughtSignature { get; set; }
+        }
+
+        private sealed class LlmFunctionCall
         {
             [JsonPropertyName("name")]
             public string Name { get; set; } = string.Empty;
@@ -671,16 +769,16 @@ namespace IotDashboard.Api.Services
             public string Arguments { get; set; } = "{}";
         }
 
-        private sealed class GroqTool
+        private sealed class LlmTool
         {
             [JsonPropertyName("type")]
             public string Type { get; set; } = "function";
 
             [JsonPropertyName("function")]
-            public GroqFunctionDef Function { get; set; } = new();
+            public LlmFunctionDef Function { get; set; } = new();
         }
 
-        private sealed class GroqFunctionDef
+        private sealed class LlmFunctionDef
         {
             [JsonPropertyName("name")]
             public string Name { get; set; } = string.Empty;
@@ -694,11 +792,11 @@ namespace IotDashboard.Api.Services
 
         private static class ChatTools
         {
-            public static readonly List<GroqTool> All = new()
+            public static readonly List<LlmTool> All = new()
             {
                 new()
                 {
-                    Function = new GroqFunctionDef
+                    Function = new LlmFunctionDef
                     {
                         Name = "GetDeviceCount",
                         Description =
@@ -708,7 +806,7 @@ namespace IotDashboard.Api.Services
                 },
                 new()
                 {
-                    Function = new GroqFunctionDef
+                    Function = new LlmFunctionDef
                     {
                         Name = "GetOnlineDeviceCount",
                         Description =
@@ -718,7 +816,7 @@ namespace IotDashboard.Api.Services
                 },
                 new()
                 {
-                    Function = new GroqFunctionDef
+                    Function = new LlmFunctionDef
                     {
                         Name = "GetDeviceStatus",
                         Description =
@@ -737,7 +835,7 @@ namespace IotDashboard.Api.Services
                 },
                 new()
                 {
-                    Function = new GroqFunctionDef
+                    Function = new LlmFunctionDef
                     {
                         Name = "GetTodaysActivities",
                         Description =

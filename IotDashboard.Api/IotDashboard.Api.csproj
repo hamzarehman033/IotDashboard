@@ -4,7 +4,7 @@
 		<TargetFramework>net8.0</TargetFramework>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
-		<UserSecretsId>iotdashboard-api-groq-secrets</UserSecretsId>
+		<UserSecretsId>iotdashboard-api-ai-secrets</UserSecretsId>
 	</PropertyGroup>
 
 	<ItemGroup>
