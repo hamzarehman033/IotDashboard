@@ -88,6 +88,7 @@ namespace IotDashboard.Api.Services
             var messages = BuildMessages(request, message);
             var useTools = LooksLikeLiveDataQuestion(message);
 
+
             try
             {
                 var first = await CallLlmAsync(messages, includeTools: useTools, ct);
