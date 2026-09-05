@@ -11,7 +11,7 @@ namespace IotDashboard.Application.Dtos.Configs
         public string ApiKey { get; set; } = string.Empty;
 
         /// <summary>Must match a model pulled on the Ollama host (e.g. llama3.2).</summary>
-        public string ModelId { get; set; } = "qwen2.5-coder:7b";
+        public string ModelId { get; set; } = "qwen2.5-coder:1.5b";
 
         /// <summary>Optional second model if primary is unavailable.</summary>
         public string FallbackModelId { get; set; } = string.Empty;

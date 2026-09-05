@@ -56,7 +56,7 @@ namespace IotDashboard.Api.Services
             _ollama.ApiKey = (_ollama.ApiKey ?? string.Empty).Trim();
             _ollama.BaseUrl = (_ollama.BaseUrl ?? string.Empty).Trim().TrimEnd('/');
             if (string.IsNullOrWhiteSpace(_ollama.ModelId))
-                _ollama.ModelId = "qwen2.5-coder:7b";
+                _ollama.ModelId = "qwen2.5-coder:1.5b";
             _devices = devices;
             _activities = activities;
             _telemetry = telemetry;
@@ -86,12 +86,20 @@ namespace IotDashboard.Api.Services
 
             request ??= new ChatRequestVM();
             var messages = BuildMessages(request, message);
+            var useTools = LooksLikeLiveDataQuestion(message);
 
             try
             {
-                var first = await CallLlmAsync(messages, includeTools: true, ct);
+                var first = await CallLlmAsync(messages, includeTools: useTools, ct);
                 if (!first.Ok)
                     return Fail(first.Error!);
+
+                // Small models sometimes emit a tool call as plain text JSON instead of tool_calls.
+                if ((first.ToolCalls is null || first.ToolCalls.Count == 0) &&
+                    TryParseTextToolCall(first.Content, out var textCall))
+                {
+                    first = LlmCallResult.Success(null, new List<LlmToolCall> { textCall });
+                }
 
                 if (first.ToolCalls is { Count: > 0 })
                 {
@@ -102,8 +110,30 @@ namespace IotDashboard.Api.Services
                     }
 
                     var call = first.ToolCalls[0];
+                    var toolName = call.Function?.Name;
+                    if (!ChatTools.IsKnown(toolName))
+                    {
+                        // Invented tool (e.g. GetApplicationDescription) — answer from FAQ without tools.
+                        messages.Add(new LlmMessage
+                        {
+                            Role = "assistant",
+                            Content = "I should answer from the FAQ in plain text without calling tools."
+                        });
+                        messages.Add(new LlmMessage
+                        {
+                            Role = "user",
+                            Content = message
+                        });
+                        var faqOnly = await CallLlmAsync(messages, includeTools: false, ct);
+                        if (!faqOnly.Ok)
+                            return Fail(faqOnly.Error!);
+                        if (string.IsNullOrWhiteSpace(faqOnly.Content) || LooksLikeToolJson(faqOnly.Content))
+                            return Ok(GetFaqFallbackAnswer(message));
+                        return Ok(ToPlainText(faqOnly.Content));
+                    }
+
                     var toolResult = await ExecuteToolAsync(
-                        call.Function?.Name,
+                        toolName,
                         call.Function?.Arguments,
                         request,
                         ct);
@@ -118,7 +148,7 @@ namespace IotDashboard.Api.Services
                     {
                         Role = "tool",
                         ToolCallId = call.Id,
-                        Name = call.Function?.Name,
+                        Name = toolName,
                         Content = toolResult
                     });
 
@@ -126,14 +156,23 @@ namespace IotDashboard.Api.Services
                     if (!second.Ok)
                         return Fail(second.Error!);
 
-                    if (string.IsNullOrWhiteSpace(second.Content))
+                    if (string.IsNullOrWhiteSpace(second.Content) || LooksLikeToolJson(second.Content))
                         return Fail("No answer was returned. Please try again.");
 
                     return Ok(ToPlainText(second.Content));
                 }
 
-                if (string.IsNullOrWhiteSpace(first.Content))
-                    return Fail("No answer was returned. Please try again.");
+                if (string.IsNullOrWhiteSpace(first.Content) || LooksLikeToolJson(first.Content))
+                {
+                    if (useTools)
+                    {
+                        var faqOnly = await CallLlmAsync(messages, includeTools: false, ct);
+                        if (faqOnly.Ok && !string.IsNullOrWhiteSpace(faqOnly.Content) && !LooksLikeToolJson(faqOnly.Content))
+                            return Ok(ToPlainText(faqOnly.Content));
+                    }
+
+                    return Ok(GetFaqFallbackAnswer(message));
+                }
 
                 return Ok(ToPlainText(first.Content));
             }
@@ -161,8 +200,9 @@ namespace IotDashboard.Api.Services
                     Role = "system",
                     Content =
                         "You are the IoT Dashboard help assistant.\n" +
-                        "For how-to and definition questions, answer from the FAQ.\n" +
-                        "For live data, call exactly one matching tool.\n" +
+                        "For how-to and definition questions (including what this application is), answer from the FAQ in plain text.\n" +
+                        "For live data only, call exactly one tool from the provided tool list.\n" +
+                        "Never invent tool names. Never write tool calls as JSON text in your reply.\n" +
                         "Never invent numbers or status. If a device-specific question has no device selected, ask the user to select a device.\n" +
                         "For device status answers: say the device name, whether it is online or offline, and key fields if present. " +
                         "Do not mention a 10-minute window, online window, Active flag, isActive, or that telemetry data is unavailable.\n" +
@@ -656,6 +696,88 @@ namespace IotDashboard.Api.Services
         private static string ToPlainText(string text) =>
             text.Replace("**", string.Empty).Replace("__", string.Empty).Trim();
 
+        private static bool LooksLikeLiveDataQuestion(string message)
+        {
+            var m = message.ToLowerInvariant();
+            return m.Contains("how many")
+                || m.Contains("online")
+                || m.Contains("offline")
+                || m.Contains("status of")
+                || m.Contains("device status")
+                || m.Contains("listed")
+                || m.Contains("activit")
+                || m.Contains("scheduled today")
+                || m.Contains("devices are");
+        }
+
+        private static bool LooksLikeToolJson(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            var t = text.Trim();
+            return (t.StartsWith('{') && t.Contains("\"name\"", StringComparison.Ordinal) &&
+                    (t.Contains("\"arguments\"", StringComparison.Ordinal) || t.Contains("\"parameters\"", StringComparison.Ordinal)))
+                || t.Contains("\"tool_calls\"", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool TryParseTextToolCall(string? content, out LlmToolCall toolCall)
+        {
+            toolCall = new LlmToolCall();
+            if (!LooksLikeToolJson(content))
+                return false;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(content!);
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("name", out var nameEl))
+                    return false;
+
+                var name = nameEl.GetString();
+                if (string.IsNullOrWhiteSpace(name))
+                    return false;
+
+                var args = "{}";
+                if (root.TryGetProperty("arguments", out var argsEl))
+                {
+                    args = argsEl.ValueKind == JsonValueKind.String
+                        ? (argsEl.GetString() ?? "{}")
+                        : argsEl.GetRawText();
+                }
+
+                toolCall = new LlmToolCall
+                {
+                    Id = $"call_{Guid.NewGuid():N}",
+                    Type = "function",
+                    Function = new LlmFunctionCall { Name = name, Arguments = args }
+                };
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private string GetFaqFallbackAnswer(string message)
+        {
+            var m = message.ToLowerInvariant();
+            if (m.Contains("what is this application") || m.Contains("what is the application") ||
+                m.Contains("what does this app") || (m.Contains("application") && m.Contains("what")))
+            {
+                return
+                    "This application is an IoT dashboard for remote monitoring of telecom sites (RMS). " +
+                    "Users can manage customers, tenants, locations, and devices; view live and historical telemetry " +
+                    "(power, battery, solar, grid, generator, environment, alarms); download status reports; " +
+                    "manage scheduled field activities; and view optional AI camera vision events for EHS and Security.";
+            }
+
+            return
+                "I can help with how-to questions from the product FAQ, and live questions about device counts, " +
+                "online status, a selected device status, or today's activities. Please rephrase your question.";
+        }
+
         private static Response<ChatReplyVM> Ok(string answer) => new()
         {
             Status = "Success",
@@ -772,6 +894,17 @@ namespace IotDashboard.Api.Services
 
         private static class ChatTools
         {
+            private static readonly HashSet<string> KnownNames = new(StringComparer.OrdinalIgnoreCase)
+            {
+                "GetDeviceCount",
+                "GetOnlineDeviceCount",
+                "GetDeviceStatus",
+                "GetTodaysActivities"
+            };
+
+            public static bool IsKnown(string? name) =>
+                !string.IsNullOrWhiteSpace(name) && KnownNames.Contains(name);
+
             public static readonly List<LlmTool> All = new()
             {
                 new()
