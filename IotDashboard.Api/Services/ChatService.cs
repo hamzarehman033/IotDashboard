@@ -24,7 +24,7 @@ namespace IotDashboard.Api.Services
         };
 
         private readonly HttpClient _http;
-        private readonly GeminiConfigs _gemini;
+        private readonly OllamaConfigs _ollama;
         private readonly IDeviceRepository _devices;
         private readonly IActivityRepository _activities;
         private readonly ITelemetryHandler _telemetry;
@@ -40,7 +40,7 @@ namespace IotDashboard.Api.Services
 
         public ChatService(
             HttpClient http,
-            IOptions<GeminiConfigs> gemini,
+            IOptions<OllamaConfigs> ollama,
             IDeviceRepository devices,
             IActivityRepository activities,
             ITelemetryHandler telemetry,
@@ -52,10 +52,11 @@ namespace IotDashboard.Api.Services
             ILogger<ChatService> logger)
         {
             _http = http;
-            _gemini = gemini.Value;
-            _gemini.ApiKey = (_gemini.ApiKey ?? string.Empty).Trim();
-            if (string.IsNullOrWhiteSpace(_gemini.ModelId))
-                _gemini.ModelId = "gemini-3.5-flash";
+            _ollama = ollama.Value;
+            _ollama.ApiKey = (_ollama.ApiKey ?? string.Empty).Trim();
+            _ollama.BaseUrl = (_ollama.BaseUrl ?? string.Empty).Trim().TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(_ollama.ModelId))
+                _ollama.ModelId = "qwen2.5-coder:7b";
             _devices = devices;
             _activities = activities;
             _telemetry = telemetry;
@@ -77,11 +78,11 @@ namespace IotDashboard.Api.Services
             if (string.IsNullOrWhiteSpace(message))
                 return Fail("Message is required.");
 
-            if (message.Length > _gemini.MaxMessageLength)
-                return Fail($"Message must be at most {_gemini.MaxMessageLength} characters.");
+            if (message.Length > _ollama.MaxMessageLength)
+                return Fail($"Message must be at most {_ollama.MaxMessageLength} characters.");
 
-            if (string.IsNullOrWhiteSpace(_gemini.ApiKey))
-                return Fail("Gemini API key is missing. Set Gemini__ApiKey in Azure App Settings (or user secrets locally).");
+            if (string.IsNullOrWhiteSpace(_ollama.BaseUrl))
+                return Fail("Ollama BaseUrl is missing. Set Ollama__BaseUrl in Azure App Settings.");
 
             request ??= new ChatRequestVM();
             var messages = BuildMessages(request, message);
@@ -98,18 +99,6 @@ namespace IotDashboard.Api.Services
                     {
                         if (string.IsNullOrWhiteSpace(tc.Id))
                             tc.Id = $"call_{Guid.NewGuid():N}";
-
-                        // Gemini 3.x rejects tool follow-ups without thought_signature.
-                        if (string.IsNullOrWhiteSpace(tc.ExtraContent?.Google?.ThoughtSignature))
-                        {
-                            tc.ExtraContent = new LlmExtraContent
-                            {
-                                Google = new LlmGoogleExtra
-                                {
-                                    ThoughtSignature = "skip_thought_signature_validator"
-                                }
-                            };
-                        }
                     }
 
                     var call = first.ToolCalls[0];
@@ -199,10 +188,10 @@ namespace IotDashboard.Api.Services
 
         private async Task<LlmCallResult> CallLlmAsync(List<LlmMessage> messages, bool includeTools, CancellationToken ct)
         {
-            var models = new List<string> { _gemini.ModelId };
-            if (!string.IsNullOrWhiteSpace(_gemini.FallbackModelId) &&
-                !string.Equals(_gemini.FallbackModelId, _gemini.ModelId, StringComparison.OrdinalIgnoreCase))
-                models.Add(_gemini.FallbackModelId);
+            var models = new List<string> { _ollama.ModelId };
+            if (!string.IsNullOrWhiteSpace(_ollama.FallbackModelId) &&
+                !string.Equals(_ollama.FallbackModelId, _ollama.ModelId, StringComparison.OrdinalIgnoreCase))
+                models.Add(_ollama.FallbackModelId);
 
             LlmCallResult? lastFail = null;
             foreach (var model in models)
@@ -213,7 +202,7 @@ namespace IotDashboard.Api.Services
                     {
                         var delayMs = 400 * (1 << (attempt - 1)) + Random.Shared.Next(0, 250);
                         _logger.LogInformation(
-                            "Retrying Gemini model {Model} after capacity/rate limit (attempt {Attempt})",
+                            "Retrying Ollama model {Model} (attempt {Attempt})",
                             model, attempt + 1);
                         await Task.Delay(delayMs, ct);
                     }
@@ -228,7 +217,7 @@ namespace IotDashboard.Api.Services
                 }
             }
 
-            return lastFail ?? LlmCallResult.Fail("Gemini is temporarily unavailable. Please try again shortly.");
+            return lastFail ?? LlmCallResult.Fail("Ollama is temporarily unavailable. Please try again shortly.");
         }
 
         private async Task<LlmCallResult> CallLlmOnceAsync(
@@ -241,7 +230,7 @@ namespace IotDashboard.Api.Services
             {
                 Model = modelId,
                 Messages = messages,
-                MaxTokens = _gemini.MaxTokens,
+                MaxTokens = _ollama.MaxTokens,
                 Temperature = 0.2,
                 Tools = includeTools ? ChatTools.All : null,
                 ToolChoice = includeTools ? "auto" : null
@@ -253,7 +242,8 @@ namespace IotDashboard.Api.Services
                 {
                     Content = JsonContent.Create(body, options: JsonOptions)
                 };
-                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _gemini.ApiKey);
+                if (!string.IsNullOrWhiteSpace(_ollama.ApiKey))
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _ollama.ApiKey);
 
                 using var res = await _http.SendAsync(req, ct);
                 var json = await res.Content.ReadAsStringAsync(ct);
@@ -275,7 +265,7 @@ namespace IotDashboard.Api.Services
             }
             catch (Exception ex) when (IsNetworkFailure(ex) || IsTimeout(ex, ct))
             {
-                _logger.LogError(ex, "Unable to reach Gemini");
+                _logger.LogError(ex, "Unable to reach Ollama");
                 return LlmCallResult.Fail(MapException(ex, ct));
             }
         }
@@ -289,44 +279,45 @@ namespace IotDashboard.Api.Services
                 || error.Contains("rate limit", StringComparison.OrdinalIgnoreCase)
                 || error.Contains("temporarily unavailable", StringComparison.OrdinalIgnoreCase)
                 || error.Contains("overloaded", StringComparison.OrdinalIgnoreCase)
-                || error.Contains("UNAVAILABLE", StringComparison.OrdinalIgnoreCase);
+                || error.Contains("UNAVAILABLE", StringComparison.OrdinalIgnoreCase)
+                || error.Contains("try again", StringComparison.OrdinalIgnoreCase);
         }
 
         private string MapHttpError(System.Net.HttpStatusCode statusCode, string json)
         {
-            _logger.LogWarning("Gemini failed: {Status} {Body}", (int)statusCode, json);
+            _logger.LogWarning("Ollama failed: {Status} {Body}", (int)statusCode, json);
             var detail = TryReadLlmError(json);
 
             return statusCode switch
             {
                 System.Net.HttpStatusCode.Unauthorized =>
-                    "Invalid Gemini API key. Check Azure App Setting Gemini__ApiKey (or local user secrets).",
+                    "Invalid Ollama API key. Check Ollama__ApiKey if your container requires auth.",
                 System.Net.HttpStatusCode.Forbidden =>
                     string.IsNullOrWhiteSpace(detail)
-                        ? "Gemini access denied (HTTP 403). Verify the API key in Google AI Studio."
-                        : $"Gemini access denied: {detail}",
+                        ? "Ollama access denied (HTTP 403)."
+                        : $"Ollama access denied: {detail}",
                 System.Net.HttpStatusCode.TooManyRequests =>
                     string.IsNullOrWhiteSpace(detail)
-                        ? "Gemini rate limit reached. Please try again shortly."
+                        ? "Ollama rate limit reached. Please try again shortly."
                         : detail!,
                 System.Net.HttpStatusCode.NotFound =>
                     string.IsNullOrWhiteSpace(detail)
-                        ? $"Gemini model '{_gemini.ModelId}' was not found (HTTP 404). Set Gemini__ModelId to gemini-3.5-flash (or another available model)."
+                        ? $"Ollama model '{_ollama.ModelId}' was not found. Pull it on the container (e.g. ollama pull {_ollama.ModelId}) and set Ollama__ModelId."
                         : detail!,
                 System.Net.HttpStatusCode.BadRequest when LooksLikeKeyOrAuthError(detail) =>
-                    "Gemini rejected the API key or request authentication. Check Gemini__ApiKey.",
+                    "Ollama rejected authentication. Check Ollama__ApiKey.",
                 System.Net.HttpStatusCode.BadRequest =>
                     string.IsNullOrWhiteSpace(detail)
-                        ? "Gemini rejected the request (HTTP 400)."
+                        ? "Ollama rejected the request (HTTP 400)."
                         : detail!,
                 System.Net.HttpStatusCode.BadGateway or
                 System.Net.HttpStatusCode.ServiceUnavailable or
                 System.Net.HttpStatusCode.GatewayTimeout =>
                     string.IsNullOrWhiteSpace(detail)
-                        ? "Gemini is temporarily unavailable due to high demand. Please try again shortly."
+                        ? "Ollama is temporarily unavailable. Please try again shortly."
                         : detail!,
                 _ => string.IsNullOrWhiteSpace(detail)
-                    ? $"Gemini request failed (HTTP {(int)statusCode})."
+                    ? $"Ollama request failed (HTTP {(int)statusCode})."
                     : detail!
             };
         }
@@ -337,10 +328,10 @@ namespace IotDashboard.Api.Services
                 return "The chat request was cancelled.";
 
             if (IsTimeout(ex, ct))
-                return "Timed out while reaching Gemini. Check App Service outbound network access to generativelanguage.googleapis.com.";
+                return $"Timed out while reaching Ollama. Check {_ollama.BaseUrl} and increase Ollama__TimeoutSeconds if the model is slow.";
 
             if (IsNetworkFailure(ex))
-                return "Cannot reach Gemini (network error). Check App Service outbound internet access to generativelanguage.googleapis.com, DNS, and firewall/VNet rules.";
+                return $"Cannot reach Ollama (network error). Check App Service outbound access to {_ollama.BaseUrl}.";
 
             return _env.IsDevelopment()
                 ? $"Chat failed: {ex.Message}"
@@ -649,8 +640,13 @@ namespace IotDashboard.Api.Services
             try
             {
                 using var doc = JsonDocument.Parse(json);
-                if (doc.RootElement.TryGetProperty("error", out var error) &&
-                    error.TryGetProperty("message", out var msg))
+                if (!doc.RootElement.TryGetProperty("error", out var error))
+                    return null;
+
+                if (error.ValueKind == JsonValueKind.String)
+                    return error.GetString();
+
+                if (error.TryGetProperty("message", out var msg))
                     return msg.GetString();
             }
             catch { }
@@ -742,22 +738,6 @@ namespace IotDashboard.Api.Services
 
             [JsonPropertyName("function")]
             public LlmFunctionCall? Function { get; set; }
-
-            /// <summary>Gemini 3.x requires round-tripping thought_signature on tool calls.</summary>
-            [JsonPropertyName("extra_content")]
-            public LlmExtraContent? ExtraContent { get; set; }
-        }
-
-        private sealed class LlmExtraContent
-        {
-            [JsonPropertyName("google")]
-            public LlmGoogleExtra? Google { get; set; }
-        }
-
-        private sealed class LlmGoogleExtra
-        {
-            [JsonPropertyName("thought_signature")]
-            public string? ThoughtSignature { get; set; }
         }
 
         private sealed class LlmFunctionCall

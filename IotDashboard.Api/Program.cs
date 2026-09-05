@@ -1,9 +1,11 @@
 using IotDashboard.Api.Util;
 using IotDashboard.Api.Hubs;
 using IotDashboard.Api.Services;
+using IotDashboard.Application.Dtos.Configs;
 using IotDashboard.Application.Handlers.Interface;
 using IotDashboard.Application.Util;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using QuestPDF.Infrastructure;
 using Serilog;
@@ -57,10 +59,14 @@ builder.Services.AddScoped<IDeviceDataService, DeviceDataService>();
 builder.Services.AddSingleton<IActivityDeviceNotifier, ActivityDeviceNotifier>();
 builder.Services.Configure<TelemetryRetentionOptions>(
     builder.Configuration.GetSection(TelemetryRetentionOptions.SectionName));
-builder.Services.AddHttpClient<IChatService, ChatService>(client =>
+builder.Services.AddHttpClient<IChatService, ChatService>((sp, client) =>
 {
-    client.BaseAddress = new Uri("https://generativelanguage.googleapis.com/v1beta/openai/");
-    client.Timeout = TimeSpan.FromSeconds(60);
+    var ollama = sp.GetRequiredService<IOptions<OllamaConfigs>>().Value;
+    var baseUrl = (ollama.BaseUrl ?? string.Empty).Trim().TrimEnd('/');
+    if (string.IsNullOrWhiteSpace(baseUrl))
+        baseUrl = "https://olama-container.kindground-dc24e970.uaenorth.azurecontainerapps.io";
+    client.BaseAddress = new Uri(baseUrl + "/v1/");
+    client.Timeout = TimeSpan.FromSeconds(ollama.TimeoutSeconds > 0 ? ollama.TimeoutSeconds : 180);
 });
 builder.Services.AddHostedService<MqttConnectionHostedService>();
 builder.Services.AddHostedService<TelemetryRetentionHostedService>();

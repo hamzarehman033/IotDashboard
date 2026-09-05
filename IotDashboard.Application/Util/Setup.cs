@@ -80,7 +80,7 @@ namespace IotDashboard.Application.Util
         private static void SetupConfigs(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<JWTConfigs>(configuration.GetSection("JWTConfigs"));
-            services.Configure<GeminiConfigs>(configuration.GetSection(GeminiConfigs.SectionName));
+            services.Configure<OllamaConfigs>(configuration.GetSection(OllamaConfigs.SectionName));
         }
 
         private static void SetupTokenValidation(this IServiceCollection services, IConfiguration configuration)
