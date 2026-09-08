@@ -64,7 +64,7 @@ builder.Services.AddHttpClient<IChatService, ChatService>((sp, client) =>
     var ollama = sp.GetRequiredService<IOptions<OllamaConfigs>>().Value;
     var baseUrl = (ollama.BaseUrl ?? string.Empty).Trim().TrimEnd('/');
     if (string.IsNullOrWhiteSpace(baseUrl))
-        baseUrl = "https://olama-container.kindground-dc24e970.uaenorth.azurecontainerapps.io";
+        baseUrl = "https://olama-container-new.kindground-dc24e970.uaenorth.azurecontainerapps.io";
     client.BaseAddress = new Uri(baseUrl + "/v1/");
     client.Timeout = TimeSpan.FromSeconds(ollama.TimeoutSeconds > 0 ? ollama.TimeoutSeconds : 180);
 });

@@ -5,7 +5,7 @@ namespace IotDashboard.Application.Dtos.Configs
         public const string SectionName = "Ollama";
 
         public string BaseUrl { get; set; } =
-            "https://olama-container.kindground-dc24e970.uaenorth.azurecontainerapps.io";
+            "https://olama-container-new.kindground-dc24e970.uaenorth.azurecontainerapps.io";
 
         /// <summary>Optional. Ollama usually does not require a key.</summary>
         public string ApiKey { get; set; } = string.Empty;
