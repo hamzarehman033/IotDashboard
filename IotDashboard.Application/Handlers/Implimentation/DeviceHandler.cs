@@ -192,6 +192,12 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 return ErrorResponse("Device not found for the provided device id");
             }
 
+            var deviceClientCheck = await _deviceRepository.GetAllAsync().FirstOrDefaultAsync(x => model.MqttClientId == x.MqttClientId);
+            if (deviceClientCheck != null && deviceClientCheck.Id != id)
+            {
+                return ErrorResponse("MqttClientId is already in use by another device");
+            }
+
             var updateModel = _mapper.Map<DeviceUpdateVM>(model);
             _mapper.Map(updateModel, device);
             device.IsActive = true;
