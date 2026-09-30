@@ -60,6 +60,17 @@ namespace IotDashboard.Application.Dtos
         [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
 
+        public string? SiteType { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? RegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? SubRegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? ZoneId { get; set; }
+
         public DateTime? FromUtc { get; set; }
         public DateTime? ToUtc { get; set; }
         public TimeRange? TimeRange { get; set; }
@@ -146,6 +157,17 @@ namespace IotDashboard.Application.Dtos
         [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
 
+        public string? SiteType { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? RegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? SubRegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? ZoneId { get; set; }
+
         public DateTime? FromUtc { get; set; }
         public DateTime? ToUtc { get; set; }
         public TimeRange? TimeRange { get; set; }
@@ -180,6 +202,17 @@ namespace IotDashboard.Application.Dtos
         [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
 
+        public string? SiteType { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? RegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? SubRegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? ZoneId { get; set; }
+
         public DateTime? FromUtc { get; set; }
         public DateTime? ToUtc { get; set; }
         public TimeRange? TimeRange { get; set; }
@@ -213,6 +246,17 @@ namespace IotDashboard.Application.Dtos
 
         [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
+
+        public string? SiteType { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? RegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? SubRegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? ZoneId { get; set; }
 
         public DateTime? FromUtc { get; set; }
         public DateTime? ToUtc { get; set; }
@@ -251,6 +295,17 @@ namespace IotDashboard.Application.Dtos
 
         [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
+
+        public string? SiteType { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? RegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? SubRegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? ZoneId { get; set; }
 
         public DateTime? FromUtc { get; set; }
         public DateTime? ToUtc { get; set; }
@@ -293,6 +348,17 @@ namespace IotDashboard.Application.Dtos
 
         [Range(1, long.MaxValue)]
         public long? DeviceId { get; set; }
+
+        public string? SiteType { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? RegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? SubRegionId { get; set; }
+
+        [Range(1, long.MaxValue)]
+        public long? ZoneId { get; set; }
 
         public DateTime? FromUtc { get; set; }
         public DateTime? ToUtc { get; set; }

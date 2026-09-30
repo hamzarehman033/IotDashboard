@@ -48,6 +48,31 @@ namespace IotDashboard.Api.Services
         private IQueryable<Device> CustomerDevices(long customerId) =>
             _context.Devices.Where(x => x.CustomerId == customerId);
 
+        private static IQueryable<Device> ApplyReportLocationFilters(
+            IQueryable<Device> deviceQuery,
+            long? regionId,
+            long? subRegionId,
+            long? zoneId,
+            string? siteType)
+        {
+            if (regionId.HasValue)
+                deviceQuery = deviceQuery.Where(x => x.RegionId == regionId.Value);
+
+            if (subRegionId.HasValue)
+                deviceQuery = deviceQuery.Where(x => x.SubRegionId == subRegionId.Value);
+
+            if (zoneId.HasValue)
+                deviceQuery = deviceQuery.Where(x => x.ZoneId == zoneId.Value);
+
+            if (!string.IsNullOrWhiteSpace(siteType))
+            {
+                var normalized = siteType.Trim().ToLower();
+                deviceQuery = deviceQuery.Where(x => x.Type != null && x.Type.ToLower() == normalized);
+            }
+
+            return deviceQuery;
+        }
+
         public async Task<DashboardSummaryResponse> GetSummary(
                 DashboardSummaryRequest request)
         {
@@ -317,8 +342,15 @@ namespace IotDashboard.Api.Services
                     .ToListAsync();
             }
 
+            var deviceQuery = ApplyReportLocationFilters(
+                CustomerDevices(customerId),
+                request.RegionId,
+                request.SubRegionId,
+                request.ZoneId,
+                request.SiteType);
+
             var baseQuery = from packet in _context.TelecomTelemetryPackets
-                            join device in CustomerDevices(customerId) on packet.DeviceNumber equals device.Id
+                            join device in deviceQuery on packet.DeviceNumber equals device.Id
                             where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
                             select new
                             {
@@ -444,8 +476,15 @@ namespace IotDashboard.Api.Services
                     .ToListAsync();
             }
 
+            var deviceQuery = ApplyReportLocationFilters(
+                CustomerDevices(customerId),
+                request.RegionId,
+                request.SubRegionId,
+                request.ZoneId,
+                request.SiteType);
+
             var baseQuery = from packet in _context.TelecomTelemetryPackets
-                            join device in CustomerDevices(customerId) on packet.DeviceNumber equals device.Id
+                            join device in deviceQuery on packet.DeviceNumber equals device.Id
                             where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
                             select new
                             {
@@ -573,8 +612,15 @@ namespace IotDashboard.Api.Services
                     .ToListAsync();
             }
 
+            var deviceQuery = ApplyReportLocationFilters(
+                CustomerDevices(customerId),
+                request.RegionId,
+                request.SubRegionId,
+                request.ZoneId,
+                request.SiteType);
+
             var baseQuery = from packet in _context.TelecomTelemetryPackets
-                            join device in CustomerDevices(customerId) on packet.DeviceNumber equals device.Id
+                            join device in deviceQuery on packet.DeviceNumber equals device.Id
                             where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
                             select new
                             {
@@ -706,8 +752,15 @@ namespace IotDashboard.Api.Services
                     .ToListAsync();
             }
 
+            var deviceQuery = ApplyReportLocationFilters(
+                CustomerDevices(customerId),
+                request.RegionId,
+                request.SubRegionId,
+                request.ZoneId,
+                request.SiteType);
+
             var baseQuery = from packet in _context.TelecomTelemetryPackets
-                            join device in CustomerDevices(customerId) on packet.DeviceNumber equals device.Id
+                            join device in deviceQuery on packet.DeviceNumber equals device.Id
                             where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
                             select new
                             {
@@ -863,8 +916,15 @@ namespace IotDashboard.Api.Services
                     .ToListAsync();
             }
 
+            var deviceQuery = ApplyReportLocationFilters(
+                CustomerDevices(customerId),
+                request.RegionId,
+                request.SubRegionId,
+                request.ZoneId,
+                request.SiteType);
+
             var baseQuery = from packet in _context.TelecomTelemetryPackets
-                            join device in CustomerDevices(customerId) on packet.DeviceNumber equals device.Id
+                            join device in deviceQuery on packet.DeviceNumber equals device.Id
                             where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
                             select new
                             {

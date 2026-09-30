@@ -63,6 +63,10 @@ namespace IotDashboard.Api.Services
             {
                 TenantId = request.TenantId,
                 DeviceId = request.DeviceId,
+                SiteType = request.SiteType,
+                RegionId = request.RegionId,
+                SubRegionId = request.SubRegionId,
+                ZoneId = request.ZoneId,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc,
                 TimeRange = request.TimeRange
@@ -84,6 +88,10 @@ namespace IotDashboard.Api.Services
             {
                 TenantId = request.TenantId,
                 DeviceId = request.DeviceId,
+                SiteType = request.SiteType,
+                RegionId = request.RegionId,
+                SubRegionId = request.SubRegionId,
+                ZoneId = request.ZoneId,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc,
                 TimeRange = request.TimeRange
@@ -105,6 +113,10 @@ namespace IotDashboard.Api.Services
             {
                 TenantId = request.TenantId,
                 DeviceId = request.DeviceId,
+                SiteType = request.SiteType,
+                RegionId = request.RegionId,
+                SubRegionId = request.SubRegionId,
+                ZoneId = request.ZoneId,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc,
                 TimeRange = request.TimeRange
@@ -126,6 +138,10 @@ namespace IotDashboard.Api.Services
             {
                 TenantId = request.TenantId,
                 DeviceId = request.DeviceId,
+                SiteType = request.SiteType,
+                RegionId = request.RegionId,
+                SubRegionId = request.SubRegionId,
+                ZoneId = request.ZoneId,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc,
                 TimeRange = request.TimeRange
@@ -147,6 +163,10 @@ namespace IotDashboard.Api.Services
             {
                 TenantId = request.TenantId,
                 DeviceId = request.DeviceId,
+                SiteType = request.SiteType,
+                RegionId = request.RegionId,
+                SubRegionId = request.SubRegionId,
+                ZoneId = request.ZoneId,
                 FromUtc = request.FromUtc,
                 ToUtc = request.ToUtc,
                 TimeRange = request.TimeRange
