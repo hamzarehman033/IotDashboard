@@ -85,14 +85,14 @@ namespace IotDashboard.Api.Controllers
         [HttpPost("battery-status-report")]
         public async Task<IActionResult> GetBatteryStatusReport([FromBody] BatteryStatusReportRequest request)
         {
-            if (request.TenantId.HasValue && request.TenantId.Value <= 0)
+            if (request.TenantIds != null && request.TenantIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, TenantId must be greater than 0.");
+                return BadRequest("If provided, TenantIds values must be greater than 0.");
             }
 
-            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            if (request.DeviceIds != null && request.DeviceIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, DeviceId must be greater than 0.");
+                return BadRequest("If provided, DeviceIds values must be greater than 0.");
             }
 
             var result = await _statisticService.GetBatteryStatusReport(request);
@@ -103,14 +103,14 @@ namespace IotDashboard.Api.Controllers
         [HttpPost("solar-status-report")]
         public async Task<IActionResult> GetSolarStatusReport([FromBody] SolarStatusReportRequest request)
         {
-            if (request.TenantId.HasValue && request.TenantId.Value <= 0)
+            if (request.TenantIds != null && request.TenantIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, TenantId must be greater than 0.");
+                return BadRequest("If provided, TenantIds values must be greater than 0.");
             }
 
-            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            if (request.DeviceIds != null && request.DeviceIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, DeviceId must be greater than 0.");
+                return BadRequest("If provided, DeviceIds values must be greater than 0.");
             }
 
             var result = await _statisticService.GetSolarStatusReport(request);
@@ -121,14 +121,14 @@ namespace IotDashboard.Api.Controllers
         [HttpPost("grid-status-report")]
         public async Task<IActionResult> GetGridStatusReport([FromBody] GridStatusReportRequest request)
         {
-            if (request.TenantId.HasValue && request.TenantId.Value <= 0)
+            if (request.TenantIds != null && request.TenantIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, TenantId must be greater than 0.");
+                return BadRequest("If provided, TenantIds values must be greater than 0.");
             }
 
-            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            if (request.DeviceIds != null && request.DeviceIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, DeviceId must be greater than 0.");
+                return BadRequest("If provided, DeviceIds values must be greater than 0.");
             }
 
             var result = await _statisticService.GetGridStatusReport(request);
@@ -139,14 +139,14 @@ namespace IotDashboard.Api.Controllers
         [HttpPost("alarm-status-report")]
         public async Task<IActionResult> GetAlarmStatusReport([FromBody] AlarmStatusReportRequest request)
         {
-            if (request.TenantId.HasValue && request.TenantId.Value <= 0)
+            if (request.TenantIds != null && request.TenantIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, TenantId must be greater than 0.");
+                return BadRequest("If provided, TenantIds values must be greater than 0.");
             }
 
-            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            if (request.DeviceIds != null && request.DeviceIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, DeviceId must be greater than 0.");
+                return BadRequest("If provided, DeviceIds values must be greater than 0.");
             }
 
             var result = await _statisticService.GetAlarmStatusReport(request);
@@ -157,14 +157,14 @@ namespace IotDashboard.Api.Controllers
         [HttpPost("energy-consumption-report")]
         public async Task<IActionResult> GetEnergyConsumptionReport([FromBody] EnergyConsumptionReportRequest request)
         {
-            if (request.TenantId.HasValue && request.TenantId.Value <= 0)
+            if (request.TenantIds != null && request.TenantIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, TenantId must be greater than 0.");
+                return BadRequest("If provided, TenantIds values must be greater than 0.");
             }
 
-            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            if (request.DeviceIds != null && request.DeviceIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, DeviceId must be greater than 0.");
+                return BadRequest("If provided, DeviceIds values must be greater than 0.");
             }
 
             var result = await _statisticService.GetEnergyConsumptionReport(request);
@@ -285,14 +285,14 @@ namespace IotDashboard.Api.Controllers
         [HttpPost("reports/download")]
         public async Task<IActionResult> DownloadReport([FromBody] ReportDownloadRequest request)
         {
-            if (request.TenantId.HasValue && request.TenantId.Value <= 0)
+            if (request.TenantIds != null && request.TenantIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, TenantId must be greater than 0.");
+                return BadRequest("If provided, TenantIds values must be greater than 0.");
             }
 
-            if (request.DeviceId.HasValue && request.DeviceId.Value <= 0)
+            if (request.DeviceIds != null && request.DeviceIds.Any(id => id <= 0))
             {
-                return BadRequest("If provided, DeviceId must be greater than 0.");
+                return BadRequest("If provided, DeviceIds values must be greater than 0.");
             }
 
             try

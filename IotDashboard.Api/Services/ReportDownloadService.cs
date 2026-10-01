@@ -61,8 +61,8 @@ namespace IotDashboard.Api.Services
         {
             var result = await _statisticService.GetBatteryStatusReport(new BatteryStatusReportRequest
             {
-                TenantId = request.TenantId,
-                DeviceId = request.DeviceId,
+                TenantIds = request.TenantIds,
+                DeviceIds = request.DeviceIds,
                 SiteType = request.SiteType,
                 RegionId = request.RegionId,
                 SubRegionId = request.SubRegionId,
@@ -86,8 +86,8 @@ namespace IotDashboard.Api.Services
         {
             var result = await _statisticService.GetSolarStatusReport(new SolarStatusReportRequest
             {
-                TenantId = request.TenantId,
-                DeviceId = request.DeviceId,
+                TenantIds = request.TenantIds,
+                DeviceIds = request.DeviceIds,
                 SiteType = request.SiteType,
                 RegionId = request.RegionId,
                 SubRegionId = request.SubRegionId,
@@ -111,8 +111,8 @@ namespace IotDashboard.Api.Services
         {
             var result = await _statisticService.GetGridStatusReport(new GridStatusReportRequest
             {
-                TenantId = request.TenantId,
-                DeviceId = request.DeviceId,
+                TenantIds = request.TenantIds,
+                DeviceIds = request.DeviceIds,
                 SiteType = request.SiteType,
                 RegionId = request.RegionId,
                 SubRegionId = request.SubRegionId,
@@ -136,8 +136,8 @@ namespace IotDashboard.Api.Services
         {
             var result = await _statisticService.GetAlarmStatusReport(new AlarmStatusReportRequest
             {
-                TenantId = request.TenantId,
-                DeviceId = request.DeviceId,
+                TenantIds = request.TenantIds,
+                DeviceIds = request.DeviceIds,
                 SiteType = request.SiteType,
                 RegionId = request.RegionId,
                 SubRegionId = request.SubRegionId,
@@ -161,8 +161,8 @@ namespace IotDashboard.Api.Services
         {
             var result = await _statisticService.GetEnergyConsumptionReport(new EnergyConsumptionReportRequest
             {
-                TenantId = request.TenantId,
-                DeviceId = request.DeviceId,
+                TenantIds = request.TenantIds,
+                DeviceIds = request.DeviceIds,
                 SiteType = request.SiteType,
                 RegionId = request.RegionId,
                 SubRegionId = request.SubRegionId,

@@ -54,11 +54,9 @@ namespace IotDashboard.Application.Dtos
         public ReportType ReportType { get; set; }
         public ReportFileFormat Format { get; set; } = ReportFileFormat.Excel;
 
-        [Range(1, long.MaxValue)]
-        public long? TenantId { get; set; }
+        public List<long>? TenantIds { get; set; }
 
-        [Range(1, long.MaxValue)]
-        public long? DeviceId { get; set; }
+        public List<long>? DeviceIds { get; set; }
 
         public string? SiteType { get; set; }
 
@@ -151,11 +149,9 @@ namespace IotDashboard.Application.Dtos
 
     public class BatteryStatusReportRequest
     {
-        [Range(1, long.MaxValue)]
-        public long? TenantId { get; set; }
+        public List<long>? TenantIds { get; set; }
 
-        [Range(1, long.MaxValue)]
-        public long? DeviceId { get; set; }
+        public List<long>? DeviceIds { get; set; }
 
         public string? SiteType { get; set; }
 
@@ -196,11 +192,9 @@ namespace IotDashboard.Application.Dtos
 
     public class SolarStatusReportRequest
     {
-        [Range(1, long.MaxValue)]
-        public long? TenantId { get; set; }
+        public List<long>? TenantIds { get; set; }
 
-        [Range(1, long.MaxValue)]
-        public long? DeviceId { get; set; }
+        public List<long>? DeviceIds { get; set; }
 
         public string? SiteType { get; set; }
 
@@ -241,11 +235,9 @@ namespace IotDashboard.Application.Dtos
 
     public class GridStatusReportRequest
     {
-        [Range(1, long.MaxValue)]
-        public long? TenantId { get; set; }
+        public List<long>? TenantIds { get; set; }
 
-        [Range(1, long.MaxValue)]
-        public long? DeviceId { get; set; }
+        public List<long>? DeviceIds { get; set; }
 
         public string? SiteType { get; set; }
 
@@ -290,11 +282,9 @@ namespace IotDashboard.Application.Dtos
 
     public class AlarmStatusReportRequest
     {
-        [Range(1, long.MaxValue)]
-        public long? TenantId { get; set; }
+        public List<long>? TenantIds { get; set; }
 
-        [Range(1, long.MaxValue)]
-        public long? DeviceId { get; set; }
+        public List<long>? DeviceIds { get; set; }
 
         public string? SiteType { get; set; }
 
@@ -343,11 +333,9 @@ namespace IotDashboard.Application.Dtos
 
     public class EnergyConsumptionReportRequest
     {
-        [Range(1, long.MaxValue)]
-        public long? TenantId { get; set; }
+        public List<long>? TenantIds { get; set; }
 
-        [Range(1, long.MaxValue)]
-        public long? DeviceId { get; set; }
+        public List<long>? DeviceIds { get; set; }
 
         public string? SiteType { get; set; }
 

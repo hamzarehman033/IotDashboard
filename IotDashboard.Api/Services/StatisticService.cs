@@ -73,6 +73,22 @@ namespace IotDashboard.Api.Services
             return deviceQuery;
         }
 
+        private static DateTime ToUtcTimestamp(DateTime value)
+        {
+            return value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
+        }
+
+        private static DateTime StartOfUtcDate(DateTime value) =>
+            DateTime.SpecifyKind(ToUtcTimestamp(value).Date, DateTimeKind.Utc);
+
+        private static DateTime EndOfUtcDate(DateTime value) =>
+            StartOfUtcDate(value).AddDays(1).AddTicks(-1);
+
         public async Task<DashboardSummaryResponse> GetSummary(
                 DashboardSummaryRequest request)
         {
@@ -332,11 +348,12 @@ namespace IotDashboard.Api.Services
                 };
             }
 
+            var tenantIds = request.TenantIds;
             var tenantDeviceIds = new List<long>();
-            if (request.TenantId.HasValue)
+            if (tenantIds != null && tenantIds.Count > 0)
             {
                 tenantDeviceIds = await _context.DeviceTenants
-                    .Where(x => x.TenantId == request.TenantId.Value && x.Device.CustomerId == customerId)
+                    .Where(x => tenantIds.Contains(x.TenantId) && x.Device.CustomerId == customerId)
                     .Select(x => x.DeviceId)
                     .Distinct()
                     .ToListAsync();
@@ -358,12 +375,13 @@ namespace IotDashboard.Api.Services
                                 SiteName = device.Name
                             };
 
-            if (request.DeviceId.HasValue)
+            var deviceIds = request.DeviceIds;
+            if (deviceIds != null && deviceIds.Count > 0)
             {
-                baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+                baseQuery = baseQuery.Where(x => deviceIds.Contains(x.Packet.DeviceNumber));
             }
 
-            if (request.TenantId.HasValue)
+            if (tenantIds != null && tenantIds.Count > 0)
             {
                 baseQuery = baseQuery.Where(x => tenantDeviceIds.Contains(x.Packet.DeviceNumber));
             }
@@ -444,7 +462,7 @@ namespace IotDashboard.Api.Services
                 (fromUtc, toUtc) = (toUtc, fromUtc);
             }
 
-            return (fromUtc, toUtc);
+            return (StartOfUtcDate(fromUtc), EndOfUtcDate(toUtc));
         }
 
         #endregion
@@ -466,11 +484,12 @@ namespace IotDashboard.Api.Services
                 };
             }
 
+            var tenantIds = request.TenantIds;
             var tenantDeviceIds = new List<long>();
-            if (request.TenantId.HasValue)
+            if (tenantIds != null && tenantIds.Count > 0)
             {
                 tenantDeviceIds = await _context.DeviceTenants
-                    .Where(x => x.TenantId == request.TenantId.Value && x.Device.CustomerId == customerId)
+                    .Where(x => tenantIds.Contains(x.TenantId) && x.Device.CustomerId == customerId)
                     .Select(x => x.DeviceId)
                     .Distinct()
                     .ToListAsync();
@@ -492,12 +511,13 @@ namespace IotDashboard.Api.Services
                                 SiteName = device.Name
                             };
 
-            if (request.DeviceId.HasValue)
+            var deviceIds = request.DeviceIds;
+            if (deviceIds != null && deviceIds.Count > 0)
             {
-                baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+                baseQuery = baseQuery.Where(x => deviceIds.Contains(x.Packet.DeviceNumber));
             }
 
-            if (request.TenantId.HasValue)
+            if (tenantIds != null && tenantIds.Count > 0)
             {
                 baseQuery = baseQuery.Where(x => tenantDeviceIds.Contains(x.Packet.DeviceNumber));
             }
@@ -580,7 +600,7 @@ namespace IotDashboard.Api.Services
                 (fromUtc, toUtc) = (toUtc, fromUtc);
             }
 
-            return (fromUtc, toUtc);
+            return (StartOfUtcDate(fromUtc), EndOfUtcDate(toUtc));
         }
 
         #endregion
@@ -602,11 +622,12 @@ namespace IotDashboard.Api.Services
                 };
             }
 
+            var tenantIds = request.TenantIds;
             var tenantDeviceIds = new List<long>();
-            if (request.TenantId.HasValue)
+            if (tenantIds != null && tenantIds.Count > 0)
             {
                 tenantDeviceIds = await _context.DeviceTenants
-                    .Where(x => x.TenantId == request.TenantId.Value && x.Device.CustomerId == customerId)
+                    .Where(x => tenantIds.Contains(x.TenantId) && x.Device.CustomerId == customerId)
                     .Select(x => x.DeviceId)
                     .Distinct()
                     .ToListAsync();
@@ -628,12 +649,13 @@ namespace IotDashboard.Api.Services
                                 SiteName = device.Name
                             };
 
-            if (request.DeviceId.HasValue)
+            var deviceIds = request.DeviceIds;
+            if (deviceIds != null && deviceIds.Count > 0)
             {
-                baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+                baseQuery = baseQuery.Where(x => deviceIds.Contains(x.Packet.DeviceNumber));
             }
 
-            if (request.TenantId.HasValue)
+            if (tenantIds != null && tenantIds.Count > 0)
             {
                 baseQuery = baseQuery.Where(x => tenantDeviceIds.Contains(x.Packet.DeviceNumber));
             }
@@ -720,7 +742,7 @@ namespace IotDashboard.Api.Services
                 (fromUtc, toUtc) = (toUtc, fromUtc);
             }
 
-            return (fromUtc, toUtc);
+            return (StartOfUtcDate(fromUtc), EndOfUtcDate(toUtc));
         }
 
         #endregion
@@ -742,11 +764,12 @@ namespace IotDashboard.Api.Services
                 };
             }
 
+            var tenantIds = request.TenantIds;
             var tenantDeviceIds = new List<long>();
-            if (request.TenantId.HasValue)
+            if (tenantIds != null && tenantIds.Count > 0)
             {
                 tenantDeviceIds = await _context.DeviceTenants
-                    .Where(x => x.TenantId == request.TenantId.Value && x.Device.CustomerId == customerId)
+                    .Where(x => tenantIds.Contains(x.TenantId) && x.Device.CustomerId == customerId)
                     .Select(x => x.DeviceId)
                     .Distinct()
                     .ToListAsync();
@@ -768,15 +791,16 @@ namespace IotDashboard.Api.Services
                                 SiteName = device.Name
                             };
 
-            if (request.DeviceId.HasValue)
+            var deviceIds = request.DeviceIds;
+            if (deviceIds != null && deviceIds.Count > 0)
             {
-                var deviceIdString = request.DeviceId.Value.ToString();
+                var deviceIdStrings = deviceIds.Select(id => id.ToString()).ToList();
                 baseQuery = baseQuery.Where(x =>
-                    x.Packet.DeviceNumber == request.DeviceId.Value ||
-                    x.Packet.DeviceId == deviceIdString);
+                    deviceIds.Contains(x.Packet.DeviceNumber) ||
+                    deviceIdStrings.Contains(x.Packet.DeviceId));
             }
 
-            if (request.TenantId.HasValue)
+            if (tenantIds != null && tenantIds.Count > 0)
             {
                 baseQuery = baseQuery.Where(x => tenantDeviceIds.Contains(x.Packet.DeviceNumber));
             }
@@ -884,7 +908,7 @@ namespace IotDashboard.Api.Services
                 (fromUtc, toUtc) = (toUtc, fromUtc);
             }
 
-            return (fromUtc, toUtc);
+            return (StartOfUtcDate(fromUtc), EndOfUtcDate(toUtc));
         }
 
         #endregion
@@ -906,11 +930,12 @@ namespace IotDashboard.Api.Services
                 };
             }
 
+            var tenantIds = request.TenantIds;
             var tenantDeviceIds = new List<long>();
-            if (request.TenantId.HasValue)
+            if (tenantIds != null && tenantIds.Count > 0)
             {
                 tenantDeviceIds = await _context.DeviceTenants
-                    .Where(x => x.TenantId == request.TenantId.Value && x.Device.CustomerId == customerId)
+                    .Where(x => tenantIds.Contains(x.TenantId) && x.Device.CustomerId == customerId)
                     .Select(x => x.DeviceId)
                     .Distinct()
                     .ToListAsync();
@@ -932,12 +957,13 @@ namespace IotDashboard.Api.Services
                                 SiteName = device.Name
                             };
 
-            if (request.DeviceId.HasValue)
+            var deviceIds = request.DeviceIds;
+            if (deviceIds != null && deviceIds.Count > 0)
             {
-                baseQuery = baseQuery.Where(x => x.Packet.DeviceNumber == request.DeviceId.Value);
+                baseQuery = baseQuery.Where(x => deviceIds.Contains(x.Packet.DeviceNumber));
             }
 
-            if (request.TenantId.HasValue)
+            if (tenantIds != null && tenantIds.Count > 0)
             {
                 baseQuery = baseQuery.Where(x => tenantDeviceIds.Contains(x.Packet.DeviceNumber));
             }
