@@ -29,6 +29,7 @@ namespace IotDashboard.Api.Services
         Task<GraphResponse> GetTenantLoadTrendsGraph(GraphRequest request);
         Task<GraphResponse> GetBatterySocGraph(GraphRequest request);
         Task<GraphResponse> GetSolarYieldGraph(GraphRequest request);
+        Task<HourlyPowerSourceUsageResponse> GetHourlyPowerSourceUsage(HourlyPowerSourceUsageRequest request);
     }
     public class StatisticService : IStatisticService
     {
@@ -1055,6 +1056,81 @@ namespace IotDashboard.Api.Services
             }
 
             return (fromUtc, toUtc);
+        }
+
+        #endregion
+
+        #region HourlyPowerSourceUsage
+
+        public async Task<HourlyPowerSourceUsageResponse> GetHourlyPowerSourceUsage(HourlyPowerSourceUsageRequest request)
+        {
+            var fromUtc = StartOfUtcDate(DateTime.UtcNow);
+            var toUtc = EndOfUtcDate(DateTime.UtcNow);
+            var hours = Enumerable.Range(0, 24)
+                .Select(i => new HourlyPowerSourceUsagePointDto { HourUtc = fromUtc.AddHours(i) })
+                .ToList();
+
+            var response = new HourlyPowerSourceUsageResponse
+            {
+                FromUtc = fromUtc,
+                ToUtc = toUtc,
+                Hours = hours
+            };
+
+            var customerId = GetActiveCustomerId();
+            if (customerId <= 0)
+                return response;
+
+            var deviceQuery = CustomerDevices(customerId);
+            var deviceIds = (request.DeviceIds ?? new List<long>()).Where(id => id > 0).Distinct().ToList();
+            if (deviceIds.Count > 0)
+                deviceQuery = deviceQuery.Where(x => deviceIds.Contains(x.Id));
+
+            var rows = await (
+                from packet in _context.TelecomTelemetryPackets
+                join device in deviceQuery on packet.DeviceNumber equals device.Id
+                where packet.ReceivedAtUtc >= fromUtc && packet.ReceivedAtUtc <= toUtc
+                select new
+                {
+                    packet.ReceivedAtUtc,
+                    packet.DeviceNumber,
+                    packet.TotalAcInputPowerW,
+                    packet.SolarPowerW,
+                    packet.GensetPowerW
+                }).ToListAsync();
+
+            var byHour = rows.GroupBy(x => GetHourStart(x.ReceivedAtUtc))
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            foreach (var hour in hours)
+            {
+                if (!byHour.TryGetValue(hour.HourUtc, out var packets))
+                    continue;
+
+                hour.GridW = SumDeviceAverages(packets, x => x.DeviceNumber, x => x.TotalAcInputPowerW);
+                hour.SolarW = SumDeviceAverages(packets, x => x.DeviceNumber, x => x.SolarPowerW);
+                hour.GeneratorW = SumDeviceAverages(packets, x => x.DeviceNumber, x => x.GensetPowerW);
+            }
+
+            return response;
+        }
+
+        private static decimal? SumDeviceAverages<T>(
+            IReadOnlyCollection<T> packets,
+            Func<T, int> deviceSelector,
+            Func<T, uint?> valueSelector)
+        {
+            var perDevice = packets
+                .Select(x => new { Device = deviceSelector(x), Value = valueSelector(x) })
+                .Where(x => x.Value.HasValue)
+                .GroupBy(x => x.Device)
+                .Select(g => g.Average(x => (decimal)x.Value!.Value))
+                .ToList();
+
+            if (perDevice.Count == 0)
+                return null;
+
+            return Math.Round(perDevice.Sum(), 2);
         }
 
         #endregion

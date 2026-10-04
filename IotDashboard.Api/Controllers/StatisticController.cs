@@ -172,6 +172,20 @@ namespace IotDashboard.Api.Controllers
         }
 
         [AllowAnonymous]
+        [HttpPost("hourly-power-source-usage")]
+        public async Task<IActionResult> GetHourlyPowerSourceUsage([FromBody] HourlyPowerSourceUsageRequest? request)
+        {
+            request ??= new HourlyPowerSourceUsageRequest();
+            if (request.DeviceIds != null && request.DeviceIds.Any(id => id <= 0))
+            {
+                return BadRequest("If provided, DeviceIds values must be greater than 0.");
+            }
+
+            var result = await _statisticService.GetHourlyPowerSourceUsage(request);
+            return Ok(result);
+        }
+
+        [AllowAnonymous]
         [HttpPost("graphs/site-total-load")]
         public async Task<IActionResult> GetSiteTotalLoadGraph([FromBody] GraphRequest request)
         {

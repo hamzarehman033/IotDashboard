@@ -451,4 +451,24 @@ namespace IotDashboard.Application.Dtos
         public GraphMetaDto Meta { get; set; } = new();
         public List<GraphSeriesDto> Series { get; set; } = new();
     }
+
+    public class HourlyPowerSourceUsageRequest
+    {
+        public List<long>? DeviceIds { get; set; }
+    }
+
+    public class HourlyPowerSourceUsagePointDto
+    {
+        public DateTime HourUtc { get; set; }
+        public decimal? GridW { get; set; }
+        public decimal? SolarW { get; set; }
+        public decimal? GeneratorW { get; set; }
+    }
+
+    public class HourlyPowerSourceUsageResponse
+    {
+        public DateTime FromUtc { get; set; }
+        public DateTime ToUtc { get; set; }
+        public List<HourlyPowerSourceUsagePointDto> Hours { get; set; } = new();
+    }
 }
