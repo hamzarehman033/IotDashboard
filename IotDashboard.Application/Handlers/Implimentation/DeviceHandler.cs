@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using FluentValidation.Results;
 using IotDashboard.Application.Util;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace IotDashboard.Application.Handlers.Implimentation
 {
@@ -427,6 +428,74 @@ namespace IotDashboard.Application.Handlers.Implimentation
             return response;
         }
 
+        public async Task<Response<bool>> SendCommandAsync(long deviceId, SendDeviceCommandRequest model, CancellationToken cancellationToken = default)
+        {
+            var customerId = _currentUserService.GetCustomerId();
+
+            if (deviceId <= 0 || deviceId > int.MaxValue)
+            {
+                return ErrorResponse<bool>("A valid device id is required");
+            }
+
+            var command = model.Command?.Trim();
+            if (string.IsNullOrWhiteSpace(command) || command.Length > 100)
+            {
+                return ErrorResponse<bool>("A command name of at most 100 characters is required");
+            }
+
+            if (!model.Payload.HasValue || model.Payload.Value.ValueKind != JsonValueKind.Object)
+            {
+                return ErrorResponse<bool>("A JSON object payload is required");
+            }
+
+            var device = await _deviceRepository.GetAllAsync()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == deviceId && x.CustomerId == customerId && x.IsActive, cancellationToken);
+            if (device == null)
+            {
+                return ErrorResponse<bool>("Active device not found for the provided device id");
+            }
+
+            var topic = device.PublishTopic?.Trim();
+            if (string.IsNullOrWhiteSpace(topic) || topic.Length > 255 || topic.IndexOfAny(new[] { '+', '#', '\0' }) >= 0)
+            {
+                return ErrorResponse<bool>("A valid MQTT publish topic without wildcards is required for this device");
+            }
+
+            if (!_mqttClientService.IsConnected((int)deviceId))
+            {
+                return ErrorResponse<bool>("Device MQTT client is not connected. Subscribe the device before sending commands");
+            }
+
+            var payload = JsonSerializer.Serialize(new { command, payload = model.Payload.Value });
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
+            try
+            {
+                await _mqttClientService.PublishAsync((int)deviceId, topic, payload, timeout.Token);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+            {
+                return ErrorResponse<bool>("MQTT publish timed out. Device execution is unconfirmed");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to publish command {Command} for device {DeviceId}", command, deviceId);
+                return ErrorResponse<bool>("Device command could not be published. Check the MQTT connection and broker permissions");
+            }
+
+            return new Response<bool>
+            {
+                Status = _success,
+                Data = true,
+                Message = new List<string> { "Device command accepted by MQTT broker. Device execution is not yet confirmed" }
+            };
+        }
+
         private async Task<string?> SyncMqttAsync(long deviceId)
             {
                 var device = await _deviceRepository
@@ -607,7 +676,12 @@ namespace IotDashboard.Application.Handlers.Implimentation
 
         private Response<DeviceVM> ErrorResponse(string message)
         {
-            return new Response<DeviceVM>
+            return ErrorResponse<DeviceVM>(message);
+        }
+
+        private Response<T> ErrorResponse<T>(string message)
+        {
+            return new Response<T>
             {
                 Status = _error,
                 Message = new List<string> { message }

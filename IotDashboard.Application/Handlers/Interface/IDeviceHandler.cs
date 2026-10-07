@@ -7,5 +7,6 @@ namespace IotDashboard.Application.Handlers.Interface
         Task<Response<DeviceVM>> PatchInfrastructureByDeviceIdAsync(long deviceId, DeviceInfrastructurePatchVM model);
         Task<Response<bool>> SubscribeMqttAsync(long deviceId);
         Task<Response<bool>> UnsubscribeMqttAsync(long deviceId);
+        Task<Response<bool>> SendCommandAsync(long deviceId, SendDeviceCommandRequest model, CancellationToken cancellationToken = default);
     }
 }

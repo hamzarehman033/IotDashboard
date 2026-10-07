@@ -217,40 +217,28 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
             }
         }
 
-        public async Task PublishAsync(string topic, string payload, bool retainFlag = false)
+        public async Task PublishAsync(int deviceId, string topic, string payload, CancellationToken cancellationToken = default)
         {
-            try
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_deviceClients.TryGetValue(deviceId, out var client) || !client.IsConnected)
             {
-                if (_deviceClients.Count == 0)
-                {
-                    _logger.LogWarning("No MQTT clients connected. Cannot publish message");
-                    return;
-                }
-
-                // Get first connected client for publishing
-                var connectedClient = _deviceClients.Values.FirstOrDefault(c => c.IsConnected);
-
-                if (connectedClient == null)
-                {
-                    _logger.LogWarning("No connected MQTT clients. Cannot publish message");
-                    return;
-                }
-
-                var message = new MqttApplicationMessageBuilder()
-                    .WithTopic(topic)
-                    .WithPayload(payload)
-                    .WithRetainFlag(retainFlag)
-                    .Build();
-
-                await connectedClient.PublishAsync(message);
-
-                _logger.LogInformation($"Message published to topic '{topic}': {payload}");
+                throw new InvalidOperationException("Device MQTT client is not connected");
             }
-            catch (Exception ex)
+
+            var message = new MqttApplicationMessageBuilder()
+                .WithTopic(topic)
+                .WithPayload(payload)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .WithRetainFlag(false)
+                .Build();
+
+            var result = await client.PublishAsync(message, cancellationToken);
+            if ((int)result.ReasonCode >= 128)
             {
-                _logger.LogError(ex, $"Failed to publish message to topic '{topic}'");
-                throw;
+                throw new InvalidOperationException("MQTT broker rejected the device command");
             }
+
+            _logger.LogInformation("MQTT command published for device {DeviceId} on topic {Topic}", deviceId, topic);
         }
 
         public async Task DisconnectAsync(int deviceId)

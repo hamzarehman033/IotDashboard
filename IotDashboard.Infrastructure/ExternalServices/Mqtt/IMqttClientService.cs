@@ -44,13 +44,14 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
         Task UnsubscribeFromTopicsAsync(int deviceId, params string[] topics);
 
         /// <summary>
-        /// Publish a message to MQTT topic
+        /// Publish a non-retained QoS 1 message using the specified device's MQTT client
         /// </summary>
+        /// <param name="deviceId">Device identifier</param>
         /// <param name="topic">Topic to publish to</param>
         /// <param name="payload">Message payload</param>
-        /// <param name="retainFlag">Retain message on broker</param>
+        /// <param name="cancellationToken">Cancellation token for publishing</param>
         /// <returns>Task representing the async operation</returns>
-        Task PublishAsync(string topic, string payload, bool retainFlag = false);
+        Task PublishAsync(int deviceId, string topic, string payload, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Disconnect device from MQTT broker

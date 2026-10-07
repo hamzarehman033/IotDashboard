@@ -32,6 +32,13 @@ namespace IotDashboard.Api.Controllers
             return res.ToResponse();
         }
 
+        [HttpPost("{deviceId}/commands")]
+        public async Task<IActionResult> SendCommand(long deviceId, [FromBody] SendDeviceCommandRequest model, CancellationToken cancellationToken)
+        {
+            var res = await _deviceHandler.SendCommandAsync(deviceId, model, cancellationToken);
+            return res.Data ? Accepted(res) : BadRequest(res);
+        }
+
         [HttpPatch("{deviceId}/infrastructure")]
         public async Task<IActionResult> PatchInfrastructure(long deviceId, [FromBody] DeviceInfrastructurePatchVM model)
         {
