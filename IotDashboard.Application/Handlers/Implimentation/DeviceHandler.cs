@@ -13,7 +13,6 @@ using Microsoft.EntityFrameworkCore;
 using FluentValidation.Results;
 using IotDashboard.Application.Util;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace IotDashboard.Application.Handlers.Implimentation
 {
@@ -437,15 +436,20 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 return ErrorResponse<bool>("A valid device id is required");
             }
 
-            var command = model.Command?.Trim();
-            if (string.IsNullOrWhiteSpace(command) || command.Length > 100)
+            if (model.TargetId is not ushort targetId || model.Action is not byte action ||
+                model.Channel is not byte channel || model.DurationSeconds is not ushort durationSeconds)
             {
-                return ErrorResponse<bool>("A command name of at most 100 characters is required");
+                return ErrorResponse<bool>("TargetId, Action, Channel, and DurationSeconds are required and must fit their protocol fields");
             }
 
-            if (!model.Payload.HasValue || model.Payload.Value.ValueKind != JsonValueKind.Object)
+            if (!DeviceCommandPacketEncoder.IsSupportedCommand(targetId, action))
             {
-                return ErrorResponse<bool>("A JSON object payload is required");
+                return ErrorResponse<bool>("The target/action pair is not supported by the device command registry");
+            }
+
+            if (action == 3 && durationSeconds == 0)
+            {
+                return ErrorResponse<bool>("Pulse commands require a nonzero duration");
             }
 
             var device = await _deviceRepository.GetAllAsync()
@@ -467,7 +471,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
                 return ErrorResponse<bool>("Device MQTT client is not connected. Subscribe the device before sending commands");
             }
 
-            var payload = JsonSerializer.Serialize(new { command, payload = model.Payload.Value });
+            var (payload, requestId) = DeviceCommandPacketEncoder.Encode(targetId, action, channel, durationSeconds);
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(10));
             try
@@ -484,15 +488,16 @@ namespace IotDashboard.Application.Handlers.Implimentation
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to publish command {Command} for device {DeviceId}", command, deviceId);
+                _logger.LogError(ex, "Failed to publish command for target {TargetId}, action {Action}, device {DeviceId}, request {RequestId}", targetId, action, deviceId, requestId);
                 return ErrorResponse<bool>("Device command could not be published. Check the MQTT connection and broker permissions");
             }
 
+            _logger.LogInformation("Published device command for target {TargetId}, action {Action}, device {DeviceId}, request {RequestId}", targetId, action, deviceId, requestId);
             return new Response<bool>
             {
                 Status = _success,
                 Data = true,
-                Message = new List<string> { "Device command accepted by MQTT broker. Device execution is not yet confirmed" }
+                Message = new List<string> { $"Device command request {requestId} accepted by MQTT broker. Device execution is not yet confirmed" }
             };
         }
 

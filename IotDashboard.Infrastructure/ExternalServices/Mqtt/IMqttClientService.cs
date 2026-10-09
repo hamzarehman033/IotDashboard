@@ -48,10 +48,10 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
         /// </summary>
         /// <param name="deviceId">Device identifier</param>
         /// <param name="topic">Topic to publish to</param>
-        /// <param name="payload">Message payload</param>
+        /// <param name="payload">Binary message payload</param>
         /// <param name="cancellationToken">Cancellation token for publishing</param>
         /// <returns>Task representing the async operation</returns>
-        Task PublishAsync(int deviceId, string topic, string payload, CancellationToken cancellationToken = default);
+        Task PublishAsync(int deviceId, string topic, byte[] payload, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Disconnect device from MQTT broker

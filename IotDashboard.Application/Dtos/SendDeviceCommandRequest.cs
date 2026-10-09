@@ -1,15 +1,20 @@
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json;
 
 namespace IotDashboard.Application.Dtos
 {
-    /// <summary>Requests a device command with a command-specific JSON object payload.</summary>
+    /// <summary>Requests one command using the unified binary device packet.</summary>
     public sealed record SendDeviceCommandRequest
     {
-        [Required, MaxLength(100)]
-        public string? Command { get; init; }
+        [Required, Range(1, ushort.MaxValue)]
+        public ushort? TargetId { get; init; }
 
-        [Required]
-        public JsonElement? Payload { get; init; }
+        [Required, Range(0, 4)]
+        public byte? Action { get; init; }
+
+        [Required, Range(0, byte.MaxValue)]
+        public byte? Channel { get; init; }
+
+        [Required, Range(0, ushort.MaxValue)]
+        public ushort? DurationSeconds { get; init; }
     }
 }

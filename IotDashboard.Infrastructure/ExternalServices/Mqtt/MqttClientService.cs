@@ -217,7 +217,7 @@ namespace IotDashboard.Infrastructure.ExternalServices.Mqtt
             }
         }
 
-        public async Task PublishAsync(int deviceId, string topic, string payload, CancellationToken cancellationToken = default)
+        public async Task PublishAsync(int deviceId, string topic, byte[] payload, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (!_deviceClients.TryGetValue(deviceId, out var client) || !client.IsConnected)
