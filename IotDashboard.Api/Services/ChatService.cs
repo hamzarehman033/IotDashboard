@@ -24,7 +24,7 @@ namespace IotDashboard.Api.Services
         };
 
         private readonly HttpClient _http;
-        private readonly OllamaConfigs _ollama;
+        private readonly FoundryConfigs _foundry;
         private readonly IDeviceRepository _devices;
         private readonly IActivityRepository _activities;
         private readonly ITelemetryHandler _telemetry;
@@ -40,7 +40,7 @@ namespace IotDashboard.Api.Services
 
         public ChatService(
             HttpClient http,
-            IOptions<OllamaConfigs> ollama,
+            IOptions<FoundryConfigs> foundry,
             IDeviceRepository devices,
             IActivityRepository activities,
             ITelemetryHandler telemetry,
@@ -52,11 +52,7 @@ namespace IotDashboard.Api.Services
             ILogger<ChatService> logger)
         {
             _http = http;
-            _ollama = ollama.Value;
-            _ollama.ApiKey = (_ollama.ApiKey ?? string.Empty).Trim();
-            _ollama.BaseUrl = (_ollama.BaseUrl ?? string.Empty).Trim().TrimEnd('/');
-            if (string.IsNullOrWhiteSpace(_ollama.ModelId))
-                _ollama.ModelId = "qwen2.5-coder:1.5b";
+            _foundry = foundry.Value;
             _devices = devices;
             _activities = activities;
             _telemetry = telemetry;
@@ -78,11 +74,24 @@ namespace IotDashboard.Api.Services
             if (string.IsNullOrWhiteSpace(message))
                 return Fail("Message is required.");
 
-            if (message.Length > _ollama.MaxMessageLength)
-                return Fail($"Message must be at most {_ollama.MaxMessageLength} characters.");
+            if (message.Length > _foundry.MaxMessageLength)
+                return Fail($"Message must be at most {_foundry.MaxMessageLength} characters.");
 
-            if (string.IsNullOrWhiteSpace(_ollama.BaseUrl))
-                return Fail("Ollama BaseUrl is missing. Set Ollama__BaseUrl in Azure App Settings.");
+            var endpoint = _foundry.Endpoint?.Trim().TrimEnd('/');
+            if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var endpointUri) ||
+                endpointUri.Scheme != Uri.UriSchemeHttps ||
+                endpointUri.AbsolutePath != "/openai/v1" ||
+                !string.IsNullOrEmpty(endpointUri.Query) ||
+                !string.IsNullOrEmpty(endpointUri.Fragment) ||
+                !string.IsNullOrEmpty(endpointUri.UserInfo))
+                return Fail("Set Foundry__Endpoint to the HTTPS OpenAI-compatible endpoint ending in /openai/v1.");
+
+            if (string.IsNullOrWhiteSpace(_foundry.apiKey) ||
+                string.IsNullOrWhiteSpace(_foundry.ModelId))
+                return Fail("Foundry configuration is incomplete. Set Foundry__ApiKey and Foundry__ModelId.");
+
+            if (_foundry.MaxTokens <= 0 || _foundry.MaxMessageLength <= 0 || _foundry.TimeoutSeconds <= 0)
+                return Fail("Foundry MaxTokens, MaxMessageLength, and TimeoutSeconds must be positive.");
 
             request ??= new ChatRequestVM();
             var messages = BuildMessages(request, message);
@@ -133,25 +142,26 @@ namespace IotDashboard.Api.Services
                         return Ok(ToPlainText(faqOnly.Content));
                     }
 
-                    var toolResult = await ExecuteToolAsync(
-                        toolName,
-                        call.Function?.Arguments,
-                        request,
-                        ct);
-
                     messages.Add(new LlmMessage
                     {
                         Role = "assistant",
                         Content = first.Content,
                         ToolCalls = first.ToolCalls
                     });
-                    messages.Add(new LlmMessage
+                    foreach (var toolCall in first.ToolCalls)
                     {
-                        Role = "tool",
-                        ToolCallId = call.Id,
-                        Name = toolName,
-                        Content = toolResult
-                    });
+                        var name = toolCall.Function?.Name;
+                        var toolResult = ChatTools.IsKnown(name)
+                            ? await ExecuteToolAsync(name, toolCall.Function?.Arguments, request, ct)
+                            : JsonSerializer.Serialize(new { error = "Unsupported tool name." });
+                        messages.Add(new LlmMessage
+                        {
+                            Role = "tool",
+                            ToolCallId = toolCall.Id,
+                            Name = name,
+                            Content = toolResult
+                        });
+                    }
 
                     var second = await CallLlmAsync(messages, includeTools: false, ct);
                     if (!second.Ok)
@@ -229,10 +239,10 @@ namespace IotDashboard.Api.Services
 
         private async Task<LlmCallResult> CallLlmAsync(List<LlmMessage> messages, bool includeTools, CancellationToken ct)
         {
-            var models = new List<string> { _ollama.ModelId };
-            if (!string.IsNullOrWhiteSpace(_ollama.FallbackModelId) &&
-                !string.Equals(_ollama.FallbackModelId, _ollama.ModelId, StringComparison.OrdinalIgnoreCase))
-                models.Add(_ollama.FallbackModelId);
+            var models = new List<string> { _foundry.ModelId.Trim() };
+            if (!string.IsNullOrWhiteSpace(_foundry.FallbackModelId) &&
+                !string.Equals(_foundry.FallbackModelId, _foundry.ModelId, StringComparison.OrdinalIgnoreCase))
+                models.Add(_foundry.FallbackModelId.Trim());
 
             LlmCallResult? lastFail = null;
             foreach (var model in models)
@@ -243,7 +253,7 @@ namespace IotDashboard.Api.Services
                     {
                         var delayMs = 400 * (1 << (attempt - 1)) + Random.Shared.Next(0, 250);
                         _logger.LogInformation(
-                            "Retrying Ollama model {Model} (attempt {Attempt})",
+                            "Retrying Foundry model {Model} (attempt {Attempt})",
                             model, attempt + 1);
                         await Task.Delay(delayMs, ct);
                     }
@@ -258,7 +268,7 @@ namespace IotDashboard.Api.Services
                 }
             }
 
-            return lastFail ?? LlmCallResult.Fail("Ollama is temporarily unavailable. Please try again shortly.");
+            return lastFail ?? LlmCallResult.Fail("Foundry is temporarily unavailable. Please try again shortly.");
         }
 
         private async Task<LlmCallResult> CallLlmOnceAsync(
@@ -271,7 +281,7 @@ namespace IotDashboard.Api.Services
             {
                 Model = modelId,
                 Messages = messages,
-                MaxTokens = _ollama.MaxTokens,
+                MaxTokens = _foundry.MaxTokens,
                 Temperature = 0.2,
                 Tools = includeTools ? ChatTools.All : null,
                 ToolChoice = includeTools ? "auto" : null
@@ -279,12 +289,13 @@ namespace IotDashboard.Api.Services
 
             try
             {
-                using var req = new HttpRequestMessage(HttpMethod.Post, "chat/completions")
+                var url = _foundry.Endpoint.Trim().TrimEnd('/') +
+                    "/chat/completions";
+                using var req = new HttpRequestMessage(HttpMethod.Post, url)
                 {
                     Content = JsonContent.Create(body, options: JsonOptions)
                 };
-                if (!string.IsNullOrWhiteSpace(_ollama.ApiKey))
-                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _ollama.ApiKey);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _foundry.apiKey.Trim());
 
                 using var res = await _http.SendAsync(req, ct);
                 var json = await res.Content.ReadAsStringAsync(ct);
@@ -306,7 +317,7 @@ namespace IotDashboard.Api.Services
             }
             catch (Exception ex) when (IsNetworkFailure(ex) || IsTimeout(ex, ct))
             {
-                _logger.LogError(ex, "Unable to reach Ollama");
+                _logger.LogError(ex, "Unable to reach Foundry");
                 return LlmCallResult.Fail(MapException(ex, ct));
             }
         }
@@ -326,39 +337,39 @@ namespace IotDashboard.Api.Services
 
         private string MapHttpError(System.Net.HttpStatusCode statusCode, string json)
         {
-            _logger.LogWarning("Ollama failed: {Status} {Body}", (int)statusCode, json);
+            _logger.LogWarning("Foundry failed: {Status}", (int)statusCode);
             var detail = TryReadLlmError(json);
 
             return statusCode switch
             {
                 System.Net.HttpStatusCode.Unauthorized =>
-                    "Invalid Ollama API key. Check Ollama__ApiKey if your container requires auth.",
+                    "Invalid Foundry API key. Check Foundry__ApiKey.",
                 System.Net.HttpStatusCode.Forbidden =>
                     string.IsNullOrWhiteSpace(detail)
-                        ? "Ollama access denied (HTTP 403)."
-                        : $"Ollama access denied: {detail}",
+                        ? "Foundry access denied (HTTP 403)."
+                        : $"Foundry access denied: {detail}",
                 System.Net.HttpStatusCode.TooManyRequests =>
                     string.IsNullOrWhiteSpace(detail)
-                        ? "Ollama rate limit reached. Please try again shortly."
+                        ? "Foundry rate limit reached. Please try again shortly."
                         : detail!,
                 System.Net.HttpStatusCode.NotFound =>
                     string.IsNullOrWhiteSpace(detail)
-                        ? $"Ollama model '{_ollama.ModelId}' was not found. Pull it on the container (e.g. ollama pull {_ollama.ModelId}) and set Ollama__ModelId."
+                        ? "Foundry deployment or endpoint was not found. Check Foundry__Endpoint and Foundry__ModelId."
                         : detail!,
                 System.Net.HttpStatusCode.BadRequest when LooksLikeKeyOrAuthError(detail) =>
-                    "Ollama rejected authentication. Check Ollama__ApiKey.",
+                    "Foundry rejected authentication. Check Foundry__ApiKey.",
                 System.Net.HttpStatusCode.BadRequest =>
                     string.IsNullOrWhiteSpace(detail)
-                        ? "Ollama rejected the request (HTTP 400)."
+                        ? "Foundry rejected the request (HTTP 400)."
                         : detail!,
                 System.Net.HttpStatusCode.BadGateway or
                 System.Net.HttpStatusCode.ServiceUnavailable or
                 System.Net.HttpStatusCode.GatewayTimeout =>
                     string.IsNullOrWhiteSpace(detail)
-                        ? "Ollama is temporarily unavailable. Please try again shortly."
+                        ? "Foundry is temporarily unavailable. Please try again shortly."
                         : detail!,
                 _ => string.IsNullOrWhiteSpace(detail)
-                    ? $"Ollama request failed (HTTP {(int)statusCode})."
+                    ? $"Foundry request failed (HTTP {(int)statusCode})."
                     : detail!
             };
         }
@@ -369,10 +380,10 @@ namespace IotDashboard.Api.Services
                 return "The chat request was cancelled.";
 
             if (IsTimeout(ex, ct))
-                return $"Timed out while reaching Ollama. Check {_ollama.BaseUrl} and increase Ollama__TimeoutSeconds if the model is slow.";
+                return "Timed out while reaching Foundry. Check Foundry__Endpoint and Foundry__TimeoutSeconds.";
 
             if (IsNetworkFailure(ex))
-                return $"Cannot reach Ollama (network error). Check App Service outbound access to {_ollama.BaseUrl}.";
+                return "Cannot reach Foundry (network error). Check outbound access to Foundry__Endpoint.";
 
             return _env.IsDevelopment()
                 ? $"Chat failed: {ex.Message}"

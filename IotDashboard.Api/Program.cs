@@ -61,12 +61,8 @@ builder.Services.Configure<TelemetryRetentionOptions>(
     builder.Configuration.GetSection(TelemetryRetentionOptions.SectionName));
 builder.Services.AddHttpClient<IChatService, ChatService>((sp, client) =>
 {
-    var ollama = sp.GetRequiredService<IOptions<OllamaConfigs>>().Value;
-    var baseUrl = (ollama.BaseUrl ?? string.Empty).Trim().TrimEnd('/');
-    if (string.IsNullOrWhiteSpace(baseUrl))
-        baseUrl = "https://olama-container-new.kindground-dc24e970.uaenorth.azurecontainerapps.io";
-    client.BaseAddress = new Uri(baseUrl + "/v1/");
-    client.Timeout = TimeSpan.FromSeconds(ollama.TimeoutSeconds > 0 ? ollama.TimeoutSeconds : 180);
+    var foundry = sp.GetRequiredService<IOptions<FoundryConfigs>>().Value;
+    client.Timeout = TimeSpan.FromSeconds(foundry.TimeoutSeconds > 0 ? foundry.TimeoutSeconds : 180);
 });
 builder.Services.AddHostedService<MqttConnectionHostedService>();
 builder.Services.AddHostedService<TelemetryRetentionHostedService>();
