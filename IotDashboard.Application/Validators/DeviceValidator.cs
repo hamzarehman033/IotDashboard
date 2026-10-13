@@ -5,7 +5,7 @@ namespace IotDashboard.Application.Validators
 {
     public class DeviceVMValidator : AbstractValidator<DeviceVM>
     {
-        private static readonly string[] AllowedDeviceTypes = new[] { "Normal", "VIP", "Platinum" };
+        private static readonly string[] AllowedDeviceTypes = new[] { "Normal", "VIP", "Platinum", "Guarded", "Unguarded", "Supervised", "Cluster Site" };
 
         public DeviceVMValidator()
         {
@@ -28,7 +28,7 @@ namespace IotDashboard.Application.Validators
 
             RuleFor(x => x.Type)
                 .Must(type => string.IsNullOrWhiteSpace(type) || AllowedDeviceTypes.Contains(type.Trim()))
-                .WithMessage("Type must be one of: Normal, VIP, Platinum");
+                .WithMessage("Type must be one of: Normal, VIP, Platinum, Guarded, Unguarded, Supervised, Cluster Site");
 
             RuleForEach(x => x.TenantIds)
                 .GreaterThan(0).WithMessage("Each tenant id must be greater than 0");
