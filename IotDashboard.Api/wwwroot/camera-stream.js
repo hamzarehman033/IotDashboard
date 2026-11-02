@@ -33,7 +33,7 @@ function log(message) {
   el.scrollTop = el.scrollHeight;
 }
 
-async function connect(role, events, existing) {
+async function connect(role, events, existing, ready) {
   const f = readForm();
   if (!f.deviceId) throw new Error("Device id is required");
 
@@ -55,10 +55,16 @@ async function connect(role, events, existing) {
     f.cameraIndex
   );
 
-  await connection.start();
-  connection.onreconnected(join);
-  await join();
-  return { connection, form: f };
+  try {
+    await connection.start();
+    ready?.(connection, f);
+    connection.onreconnected(() => join().catch((error) => log(error.message || String(error))));
+    await join();
+    return { connection, form: f };
+  } catch (error) {
+    await connection.stop();
+    throw error;
+  }
 }
 
 function signal(connection, f, viewerId, payload) {
@@ -67,6 +73,59 @@ function signal(connection, f, viewerId, payload) {
 
 async function stop(connection, f, close, disconnect) {
   close?.();
-  try { await connection?.invoke("StopStream", f.deviceId); } catch { }
-  if (disconnect) await connection?.stop();
+  try {
+    if (connection && f) await connection.invoke("StopStream", f.deviceId);
+  } finally {
+    if (disconnect) await connection?.stop();
+  }
+}
+
+async function attachMicrophone(peer, track) {
+  const audio = peer.getTransceivers().find((transceiver) =>
+    transceiver.receiver.track.kind === "audio");
+  if (!audio) throw new Error("Audio channel is not ready. Wait for the stream, then try again.");
+  await audio.sender.replaceTrack(track);
+}
+
+function setMicrophone(stream) {
+  const tracks = stream?.getAudioTracks() || [];
+  $("muteMic").disabled = tracks.length === 0;
+  $("muteMic").textContent = "Mute microphone";
+}
+
+function toggleMicrophone(stream) {
+  const tracks = stream?.getAudioTracks() || [];
+  const enabled = !tracks[0]?.enabled;
+  tracks.forEach((track) => { track.enabled = enabled; });
+  $("muteMic").textContent = enabled ? "Mute microphone" : "Unmute microphone";
+}
+
+async function playMedia(element) {
+  try {
+    await element.play();
+  } catch (error) {
+    log("Playback blocked: " + error.message + ". Use the media play control to hear remote audio.");
+  }
+}
+
+const signalQueues = new WeakMap();
+
+function receiveSignal(peer, payload, answer) {
+  let state = signalQueues.get(peer);
+  if (!state) {
+    state = { pendingIce: [], queue: Promise.resolve() };
+    signalQueues.set(peer, state);
+  }
+  state.queue = state.queue.then(async () => {
+    if (peer.signalingState === "closed") return;
+    if (payload.type === "ice" && payload.candidate) {
+      if (peer.remoteDescription) await peer.addIceCandidate(payload.candidate);
+      else state.pendingIce.push(payload.candidate);
+    } else if (payload.type === "offer" || payload.type === "answer") {
+      await peer.setRemoteDescription({ type: payload.type, sdp: payload.sdp });
+      for (const candidate of state.pendingIce.splice(0)) await peer.addIceCandidate(candidate);
+      if (payload.type === "offer") await answer();
+    }
+  }).catch((error) => log("Signaling error: " + error.message));
+  return state.queue;
 }

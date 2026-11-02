@@ -13,6 +13,7 @@
     #log { white-space: pre-wrap; background: #f4f4f4; padding: 8px; height: 120px; overflow: auto; }
     button { margin: 12px 8px 0 0; }
     .hint { color: #555; font-size: 13px; }
+    audio { display: block; width: 100%; }
   </style>
 </head>
 <body>
@@ -30,9 +31,12 @@
   <input id="turnUser" />
   <label>TURN password</label>
   <input id="turnPass" type="password" />
+  <p class="hint">Audio starts only when a viewer clicks Start audio after the video starts. Allow microphone access here when requested. Use HTTPS or localhost and headphones. The local preview stays muted.</p>
   <button id="start">Start stream</button>
   <button id="stop">Stop</button>
+  <button id="muteMic" disabled>Mute microphone</button>
   <video id="video" autoplay playsinline muted></video>
+  <div id="remoteAudio" aria-label="Viewer audio"></div>
   <div id="log"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
@@ -41,13 +45,21 @@
     document.getElementById("apiUrl").value = location.origin;
     const video = document.getElementById("video");
     const peers = new Map();
+    const remoteAudio = new Map();
     let connection, form, stream;
+    let microphoneRequest;
 
     function closePeer(viewerConnectionId) {
       const peer = peers.get(viewerConnectionId);
       if (!peer) return;
       peer.close();
       peers.delete(viewerConnectionId);
+      const audio = remoteAudio.get(viewerConnectionId);
+      if (audio) {
+        audio.srcObject = null;
+        audio.remove();
+        remoteAudio.delete(viewerConnectionId);
+      }
     }
 
     function closeAllPeers() {
@@ -59,9 +71,26 @@
       const peer = new RTCPeerConnection({ iceServers: iceServers() });
       peers.set(viewerConnectionId, peer);
       peer.onicecandidate = (e) => {
-        if (e.candidate) signal(connection, form, viewerConnectionId, { type: "ice", candidate: e.candidate });
+        if (e.candidate) signal(connection, form, viewerConnectionId, { type: "ice", candidate: e.candidate })
+          .catch((error) => log(error.message));
       };
-      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
+      peer.ontrack = (event) => {
+        if (event.track.kind !== "audio") return;
+        let audio = remoteAudio.get(viewerConnectionId);
+        if (!audio) {
+          audio = document.createElement("audio");
+          audio.autoplay = true;
+          audio.controls = true;
+          audio.setAttribute("aria-label", "Audio from viewer " + viewerConnectionId);
+          document.getElementById("remoteAudio").appendChild(audio);
+          remoteAudio.set(viewerConnectionId, audio);
+        }
+        audio.srcObject = event.streams[0] || new MediaStream([event.track]);
+        log("Viewer audio received: " + viewerConnectionId);
+        playMedia(audio);
+      };
+      stream.getVideoTracks().forEach((track) => peer.addTrack(track, stream));
+      peer.addTransceiver("audio", { direction: "sendrecv" });
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
       await signal(connection, form, viewerConnectionId, { type: "offer", sdp: offer.sdp });
@@ -69,35 +98,99 @@
     }
 
     document.getElementById("start").onclick = async () => {
+      document.getElementById("start").disabled = true;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        setMicrophone(stream);
         video.srcObject = stream;
 
         ({ connection, form } = await connect("publisher", {
           StartRequested: (message) => {
-            if (message.viewerConnectionId) offerToViewer(message.viewerConnectionId);
+            if (message.viewerConnectionId) return offerToViewer(message.viewerConnectionId)
+              .catch((error) => log(error.message));
           },
           StopRequested: (message) => closePeer(message.viewerConnectionId),
           CameraSignal: async (message) => {
             const peer = peers.get(message.viewerConnectionId);
             const payload = message.payload;
             if (!peer || !payload) return;
-            if (payload.type === "answer") await peer.setRemoteDescription({ type: "answer", sdp: payload.sdp });
-            if (payload.type === "ice" && payload.candidate) await peer.addIceCandidate(payload.candidate);
+            if (payload.type === "audio-start") {
+              await startAudioForViewer(message.viewerConnectionId, peer);
+              return;
+            }
+            await receiveSignal(peer, payload);
           }
+        }, null, (hub, settings) => {
+          connection = hub;
+          form = settings;
         }));
         log("Publisher ready");
       } catch (e) {
         log(e.message || String(e));
+        closeAllPeers();
+        stream?.getTracks().forEach((track) => track.stop());
+        stream = null;
+        video.srcObject = null;
+        setMicrophone(null);
+        document.getElementById("start").disabled = false;
       }
     };
 
     document.getElementById("stop").onclick = async () => {
-      stream?.getTracks().forEach((track) => track.stop());
-      await stop(connection, form, closeAllPeers, true);
-      video.srcObject = null;
-      log("Stopped");
+      try {
+        stream?.getTracks().forEach((track) => track.stop());
+        await stop(connection, form, closeAllPeers, true);
+        log("Stopped");
+      } catch (error) {
+        log(error.message || String(error));
+      } finally {
+        stream = null;
+        microphoneRequest = null;
+        connection = null;
+        form = null;
+        video.srcObject = null;
+        setMicrophone(null);
+        document.getElementById("start").disabled = false;
+      }
     };
+    async function startAudioForViewer(viewerId, peer) {
+      const activeStream = stream;
+      const activeConnection = connection;
+      try {
+        if (!activeStream.getAudioTracks().length) {
+          if (!microphoneRequest) {
+            log("Viewer requested audio; allow microphone access.");
+            microphoneRequest = (async () => {
+              const audioStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+              if (stream !== activeStream) {
+                audioStream.getTracks().forEach((track) => track.stop());
+                throw new Error("Stream stopped before microphone access completed.");
+              }
+              activeStream.addTrack(audioStream.getAudioTracks()[0]);
+              setMicrophone(activeStream);
+            })();
+          }
+          const pending = microphoneRequest;
+          try {
+            await pending;
+          } finally {
+            if (microphoneRequest === pending) microphoneRequest = null;
+          }
+        }
+        if (stream !== activeStream || peers.get(viewerId) !== peer) return;
+        await attachMicrophone(peer, activeStream.getAudioTracks()[0]);
+        await signal(activeConnection, form, viewerId, { type: "audio-ready" });
+        log("Two-way audio started for viewer " + viewerId);
+      } catch (error) {
+        log(error.message || String(error));
+        if (stream === activeStream && peers.get(viewerId) === peer) {
+          await signal(activeConnection, form, viewerId, {
+            type: "audio-error", message: "Publisher could not start its microphone. Check permissions and retry Start audio."
+          }).catch((signalError) => log(signalError.message));
+        }
+      }
+    }
+    document.getElementById("muteMic").onclick = () => toggleMicrophone(stream);
   </script>
 </body>
 </html>

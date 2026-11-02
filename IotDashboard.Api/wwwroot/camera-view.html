@@ -30,9 +30,12 @@
   <input id="turnUser" />
   <label>TURN password</label>
   <input id="turnPass" type="password" />
+  <p class="hint">Wait for the stream, then click Start audio to talk to the publisher. Allow microphone access on HTTPS or localhost. Use headphones; use the video play/volume controls if audio playback is blocked.</p>
   <button id="start">Show stream</button>
   <button id="stop">Stop</button>
-  <video id="video" autoplay playsinline></video>
+  <button id="startAudio" disabled>Start audio</button>
+  <button id="muteMic" disabled>Mute microphone</button>
+  <video id="video" autoplay playsinline controls></video>
   <div id="log"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
@@ -40,50 +43,137 @@
   <script>
     document.getElementById("apiUrl").value = location.origin;
     const video = document.getElementById("video");
-    let connection, form, peer;
+    let connection, form, peer, microphone;
 
     function closePeer() {
       peer?.close();
       peer = null;
       video.srcObject = null;
+      document.getElementById("startAudio").disabled = true;
+    }
+
+    function createViewerPeer() {
+      closePeer();
+      peer = new RTCPeerConnection({ iceServers: iceServers() });
+      microphone?.getTracks().forEach((track) => peer.addTrack(track, microphone));
+      peer.ontrack = (event) => {
+        if (!video.srcObject) video.srcObject = new MediaStream();
+        video.srcObject.addTrack(event.track);
+        if (event.track.kind === "video" && !microphone) {
+          document.getElementById("startAudio").disabled = false;
+        } else if (event.track.kind === "video" && microphone) {
+          signal(connection, form, connection.connectionId, { type: "audio-start" })
+            .catch((error) => log(error.message));
+        }
+        log("Publisher " + event.track.kind + " received");
+        playMedia(video);
+      };
+      peer.onicecandidate = (event) => {
+        if (event.candidate && connection) signal(connection, form, connection.connectionId,
+          { type: "ice", candidate: event.candidate }).catch((error) => log(error.message));
+      };
     }
 
     const handlers = {
-      PublisherJoined: () => connection.invoke("RequestOffer", form.deviceId, form.cameraIndex),
+      PublisherJoined: () => {
+        createViewerPeer();
+        return connection.invoke("RequestOffer", form.deviceId, form.cameraIndex)
+          .catch((error) => log(error.message));
+      },
       PublisherLeft: closePeer,
       CameraSignal: async (message) => {
         const payload = message.payload;
-        if (!payload || !peer) return;
-        if (payload.type === "offer") {
-          await peer.setRemoteDescription({ type: "offer", sdp: payload.sdp });
+        if (!payload) return;
+        if (payload.type === "audio-ready") {
+          log("Publisher microphone ready; two-way audio started.");
+          return;
+        }
+        if (payload.type === "audio-error") {
+          log(payload.message);
+          document.getElementById("startAudio").disabled = false;
+          return;
+        }
+        if (!peer) createViewerPeer();
+        await receiveSignal(peer, payload, async () => {
+          const audio = peer.getTransceivers().find((transceiver) =>
+            transceiver.receiver.track.kind === "audio");
+          if (audio) audio.direction = "sendrecv";
           const answer = await peer.createAnswer();
           await peer.setLocalDescription(answer);
           await signal(connection, form, connection.connectionId, { type: "answer", sdp: answer.sdp });
-        } else if (payload.type === "ice" && payload.candidate) {
-          await peer.addIceCandidate(payload.candidate);
-        }
+        });
       }
     };
 
     document.getElementById("start").onclick = async () => {
+      document.getElementById("start").disabled = true;
+      document.getElementById("startAudio").disabled = true;
       try {
-        closePeer();
-        peer = new RTCPeerConnection({ iceServers: iceServers() });
-        peer.ontrack = (e) => { video.srcObject = e.streams[0]; };
-        peer.onicecandidate = (e) => {
-          if (e.candidate && connection) signal(connection, form, connection.connectionId, { type: "ice", candidate: e.candidate });
-        };
-        ({ connection, form } = await connect("viewer", handlers, connection));
+        setMicrophone(microphone);
+        createViewerPeer();
+        ({ connection, form } = await connect("viewer", handlers, null, (hub, settings) => {
+          connection = hub;
+          form = settings;
+        }));
         log("Waiting for offer");
       } catch (e) {
         log(e.message || String(e));
+        closePeer();
+        microphone?.getTracks().forEach((track) => track.stop());
+        microphone = null;
+        setMicrophone(null);
+        document.getElementById("start").disabled = false;
+        document.getElementById("startAudio").disabled = true;
       }
     };
 
     document.getElementById("stop").onclick = async () => {
-      await stop(connection, form, closePeer);
-      log("Stopped");
+      try {
+        microphone?.getTracks().forEach((track) => track.stop());
+        await stop(connection, form, closePeer, true);
+        log("Stopped");
+      } catch (error) {
+        log(error.message || String(error));
+      } finally {
+        microphone = null;
+        connection = null;
+        form = null;
+        setMicrophone(null);
+        document.getElementById("start").disabled = false;
+        document.getElementById("startAudio").disabled = true;
+      }
     };
+    document.getElementById("startAudio").onclick = async () => {
+      const activePeer = peer;
+      if (!activePeer || !connection) return;
+      document.getElementById("startAudio").disabled = true;
+      let audioStream;
+      try {
+        audioStream = microphone || await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+        if (peer !== activePeer) {
+          audioStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        await attachMicrophone(activePeer, audioStream.getAudioTracks()[0]);
+        if (peer !== activePeer) {
+          audioStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        microphone = audioStream;
+        setMicrophone(microphone);
+        await signal(connection, form, connection.connectionId, { type: "audio-start" });
+        log("Microphone started; requested publisher audio.");
+      } catch (error) {
+        audioStream?.getTracks().forEach((track) => track.stop());
+        if (microphone === audioStream) {
+          microphone = null;
+          setMicrophone(null);
+        }
+        log(error.message || String(error));
+        if (peer === activePeer) document.getElementById("startAudio").disabled = false;
+      }
+    };
+    document.getElementById("muteMic").onclick = () => toggleMicrophone(microphone);
   </script>
 </body>
 </html>
