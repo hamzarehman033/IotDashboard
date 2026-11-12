@@ -6,7 +6,7 @@ name: Build and deploy ASP.Net Core app to Azure Web App - Iotdashboard-qa
 on:
   push:
     branches:
-      - master
+      - 'master'
   workflow_dispatch:
 
 jobs:
@@ -51,9 +51,9 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_432490C6BA524CFFB81891A0B8FDDFFF }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_DB54EA62D5B44C8C8A09A8728E5AFC5E }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_E514E693C42140D7A8789059F9F568D8 }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_2434AF1B13CE42A793BDFBF023F00153 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_CAFF1C51E3704645AEA15D817D089F08 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_B621537507F04DEEB99916306044F259 }}
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
