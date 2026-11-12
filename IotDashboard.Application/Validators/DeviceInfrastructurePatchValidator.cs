@@ -1,5 +1,7 @@
 using FluentValidation;
 using IotDashboard.Application.Dtos;
+using IotDashboard.Application.Dtos.Configs;
+using Microsoft.Extensions.Options;
 
 namespace IotDashboard.Application.Validators
 {
@@ -7,8 +9,10 @@ namespace IotDashboard.Application.Validators
     {
         private static readonly string[] AllowedPowerSources = { "CP", "Battery", "Solar", "Generator" };
 
-        public DeviceInfrastructurePatchValidator()
+        public DeviceInfrastructurePatchValidator(IOptions<CameraConfigs> cameraOptions)
         {
+            var maxCameras = cameraOptions.Value.EffectiveMaxPerDevice;
+
             RuleForEach(x => x.PowerSources)
                 .Must(x => AllowedPowerSources.Contains(x, StringComparer.OrdinalIgnoreCase))
                 .When(x => x.PowerSources is not null)
@@ -61,8 +65,36 @@ namespace IotDashboard.Application.Validators
                 .MaximumLength(50).WithMessage("SIM card number must be at most 50 characters");
 
             RuleFor(x => x.CamerasInstalledCount)
-                .GreaterThanOrEqualTo(0).When(x => x.CamerasInstalledCount.HasValue)
-                .WithMessage("Cameras installed count must be 0 or greater");
+                .GreaterThanOrEqualTo(0).WithMessage("Cameras installed count must be 0 or greater")
+                .LessThanOrEqualTo(maxCameras).WithMessage($"A device can have at most {maxCameras} cameras")
+                .When(x => x.CamerasInstalledCount.HasValue);
+
+            RuleFor(x => x.Cameras!.Count)
+                .LessThanOrEqualTo(maxCameras).When(x => x.Cameras is not null)
+                .WithMessage($"A device can have at most {maxCameras} cameras");
+
+            RuleForEach(x => x.Cameras)
+                .NotNull().WithMessage("Camera entries must not be empty")
+                .When(x => x.Cameras is not null);
+
+            RuleFor(x => x.Cameras)
+                .Must(cameras =>
+                {
+                    var indexes = cameras!.Where(c => c is not null).Select(c => c.CameraIndex).ToList();
+                    return indexes.Distinct().Count() == indexes.Count;
+                })
+                .When(x => x.Cameras is not null)
+                .WithMessage("Each camera must have a unique camera index");
+
+            RuleForEach(x => x.Cameras).ChildRules(camera =>
+            {
+                camera.RuleFor(c => (int)c.CameraIndex)
+                    .InclusiveBetween(1, maxCameras)
+                    .WithMessage($"Camera index must be between 1 and {maxCameras}");
+
+                camera.RuleFor(c => c.Name)
+                    .MaximumLength(100).WithMessage("Camera name must be at most 100 characters");
+            }).When(x => x.Cameras is not null);
         }
     }
 }

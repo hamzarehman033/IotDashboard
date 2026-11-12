@@ -81,6 +81,7 @@ namespace IotDashboard.Application.Util
         {
             services.Configure<JWTConfigs>(configuration.GetSection("JWTConfigs"));
             services.Configure<FoundryConfigs>(configuration.GetSection(FoundryConfigs.SectionName));
+            services.Configure<CameraConfigs>(configuration.GetSection(CameraConfigs.SectionName));
         }
 
         private static void SetupTokenValidation(this IServiceCollection services, IConfiguration configuration)

@@ -1,5 +1,7 @@
 using FluentValidation;
 using IotDashboard.Application.Dtos;
+using IotDashboard.Application.Dtos.Configs;
+using Microsoft.Extensions.Options;
 using IotDashboard.Application.Handlers.Interface;
 using IotDashboard.Application.Mappers;
 using IotDashboard.Application.Validators;
@@ -25,6 +27,7 @@ namespace IotDashboard.Application.Handlers.Implimentation
         private readonly IValidator<DeviceInfrastructurePatchVM> _infrastructurePatchValidator;
         private readonly AppDBContext _dbContext;
         private readonly ILogger<DeviceHandler> _logger;
+        private readonly CameraConfigs _cameraConfigs;
 
         public DeviceHandler(
             IDeviceRepository deviceRepository,
@@ -36,7 +39,8 @@ namespace IotDashboard.Application.Handlers.Implimentation
             IValidator<DeviceInfrastructurePatchVM> infrastructurePatchValidator,
             FilterValidator<DeviceVM> filterValidator,
             IHttpContextAccessor httpContextAccessor,
-            ILogger<DeviceHandler> logger)
+            ILogger<DeviceHandler> logger,
+            IOptions<CameraConfigs> cameraOptions)
             : base(deviceRepository, DeviceMapper.Mapper.Value, validator, filterValidator, httpContextAccessor)
         {
             _deviceRepository = deviceRepository;
@@ -46,6 +50,16 @@ namespace IotDashboard.Application.Handlers.Implimentation
             _dbContext = dbContext;
             _infrastructurePatchValidator = infrastructurePatchValidator;
             _logger = logger;
+            _cameraConfigs = cameraOptions.Value;
+        }
+
+        public Response<CameraSettingsVM> GetCameraSettings()
+        {
+            return new Response<CameraSettingsVM>
+            {
+                Status = _success,
+                Data = new CameraSettingsVM { MaxCamerasPerDevice = _cameraConfigs.EffectiveMaxPerDevice }
+            };
         }
 
         public override async Task<Response<PagerModel<DeviceVM>>> GetAllAsync(int pageSize = 10, int currentPage = 1, IEnumerable<FilterVM> filters = null)
@@ -316,15 +330,22 @@ namespace IotDashboard.Application.Handlers.Implimentation
             else if (model.CamerasInstalledCount.HasValue)
             {
                 device.CamerasInstalledCount = model.CamerasInstalledCount.Value;
+                // Indexes are 1-based; fill the first free ones.
+                var usedIndexes = device.Cameras.Select(x => x.CameraIndex).ToHashSet();
+                byte index = 1;
                 while (device.Cameras.Count < device.CamerasInstalledCount)
                 {
-                    var index = (byte)device.Cameras.Count;
+                    while (usedIndexes.Contains(index)) index++;
                     device.Cameras.Add(new CameraItem { CameraIndex = index, Name = $"Camera {index}", IsEnabled = true });
+                    usedIndexes.Add(index);
                 }
 
                 if (device.Cameras.Count > device.CamerasInstalledCount)
                 {
-                    device.Cameras = device.Cameras.Take(device.CamerasInstalledCount).ToList();
+                    device.Cameras = device.Cameras
+                        .OrderBy(x => x.CameraIndex)
+                        .Take(device.CamerasInstalledCount)
+                        .ToList();
                 }
             }
             if (model.AiEhsInstalled.HasValue) device.AiEhsInstalled = model.AiEhsInstalled.Value;

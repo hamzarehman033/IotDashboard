@@ -18,6 +18,12 @@ namespace IotDashboard.Api.Controllers
             _deviceHandler = deviceHandler;
         }
 
+        [HttpGet("camera-settings")]
+        public IActionResult GetCameraSettings()
+        {
+            return _deviceHandler.GetCameraSettings().ToResponse();
+        }
+
         [HttpPost("{deviceId}/mqtt/subscribe")]
         public async Task<IActionResult> SubscribeMqtt(long deviceId)
         {
